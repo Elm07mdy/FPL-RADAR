@@ -196,7 +196,7 @@ if uploaded_files and st.sidebar.button("⚡ Analyze Screenshots & Update Radar"
                     }
                 }
                 """
-                res = client.models.generate_content(model="gemini-2.5-flash", contents=[prompt, *images])
+                res = client.models.generate_content(model="gemini-3.8-flash", contents=[prompt, *images])
                 clean_json = res.text.replace("```json", "").replace("```", "").strip()
                 new_data = json.loads(clean_json)
                 
