@@ -1,395 +1,3124 @@
-import streamlit as st
-import json
+# ============================================================
+# FPL RADAR PRO
+# Ultimate Fantasy Premier League Analytics
+# Single-file Streamlit Application
+# ============================================================
+
 import os
+import json
+import math
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+
+import requests
 import pandas as pd
-from PIL import Image
-from google import genai
+import streamlit as st
 import plotly.graph_objects as go
 
-# ---------------------------------------------------------
-# 1. Page Configuration & Improved UI Theme (High Contrast)
-# ---------------------------------------------------------
+# Gemini
+try:
+    from google import genai
+    from google.genai import types
+    GEMINI_AVAILABLE = True
+except Exception:
+    GEMINI_AVAILABLE = False
+
+
+# ============================================================
+# CONFIG
+# ============================================================
+
+APP_NAME = "FPL Radar"
+APP_VERSION = "3.0"
+
+FPL_BASE = "https://fantasy.premierleague.com/api"
+
+BOOTSTRAP_URL = f"{FPL_BASE}/bootstrap-static/"
+FIXTURES_URL = f"{FPL_BASE}/fixtures/"
+
+REQUEST_TIMEOUT = 20
+
+GEMINI_MODEL = "gemini-3.8-flash"
+
+CACHE_TTL = 300
+
+
+# ============================================================
+# PAGE CONFIG
+# ============================================================
+
 st.set_page_config(
     page_title="FPL Radar",
-    page_icon="⚽",
+    page_icon="🎯",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-st.markdown("""
+
+# ============================================================
+# CSS
+# ============================================================
+
+st.markdown(
+    """
 <style>
-    .main { background-color: #0b0f19; color: #f8fafc; }
-    .stSelectbox label, .stMultiSelect label, .stSlider label { font-weight: bold; color: #00ff87 !important; font-size: 1.05rem; }
-    
-    /* تحسين تباين الكروت لضمان وضوح الكتابة وعدم طغيان الخلفية */
-    .stat-card {
-        background: rgba(30, 41, 59, 0.90);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-right: 5px solid #00ff87;
-        border-radius: 12px;
-        padding: 18px;
-        margin-bottom: 15px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+
+html, body, [class*="css"] {
+    font-family: Inter, Arial, sans-serif;
+}
+
+.main {
+    background:
+        radial-gradient(circle at top left, rgba(48, 96, 160, .12), transparent 30%),
+        #070b12;
+}
+
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 3rem;
+    max-width: 1400px;
+}
+
+/* Sidebar */
+
+section[data-testid="stSidebar"] {
+    background: #090e17;
+    border-right: 1px solid #182231;
+}
+
+section[data-testid="stSidebar"] .block-container {
+    padding-top: 1.2rem;
+}
+
+/* Cards */
+
+.radar-card {
+    background: linear-gradient(145deg, #101722, #0b1018);
+    border: 1px solid #1d2a3a;
+    border-radius: 18px;
+    padding: 18px;
+    margin-bottom: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.20);
+}
+
+.radar-card h3 {
+    margin-top: 0;
+}
+
+.metric-card {
+    background: #0e151f;
+    border: 1px solid #1d2a3a;
+    border-radius: 16px;
+    padding: 16px;
+    min-height: 110px;
+}
+
+.metric-label {
+    color: #8e9aab;
+    font-size: 13px;
+}
+
+.metric-value {
+    font-size: 28px;
+    font-weight: 800;
+    margin-top: 5px;
+}
+
+.metric-sub {
+    color: #6f7d90;
+    font-size: 12px;
+}
+
+/* Verdict */
+
+.verdict {
+    border-radius: 18px;
+    padding: 20px;
+    background:
+        linear-gradient(135deg, rgba(20, 135, 100, .18), rgba(10, 20, 30, .95));
+    border: 1px solid #205744;
+}
+
+.verdict-title {
+    font-size: 14px;
+    letter-spacing: 1px;
+    font-weight: 800;
+    color: #74e0bd;
+}
+
+.verdict-main {
+    font-size: 25px;
+    font-weight: 900;
+    margin-top: 6px;
+}
+
+.verdict-text {
+    color: #aab5c4;
+    margin-top: 7px;
+}
+
+/* Badges */
+
+.badge {
+    display: inline-block;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    margin-right: 5px;
+}
+
+.badge-green {
+    background: rgba(45, 180, 130, .16);
+    color: #6ee7bd;
+}
+
+.badge-yellow {
+    background: rgba(220, 170, 50, .16);
+    color: #f2ca67;
+}
+
+.badge-red {
+    background: rgba(220, 75, 80, .16);
+    color: #ff9296;
+}
+
+/* Player rows */
+
+.player-row {
+    background: #0d141e;
+    border: 1px solid #1b2736;
+    border-radius: 14px;
+    padding: 13px;
+    margin-bottom: 8px;
+}
+
+/* Mobile */
+
+@media (max-width: 768px) {
+
+    .block-container {
+        padding-left: .75rem;
+        padding-right: .75rem;
     }
-    .stat-card h3, .stat-card h4 { color: #ffffff !important; }
-    .stat-card p, .stat-card small { color: #e2e8f0 !important; }
-    
-    .badge-diff { background-color: #2563eb; color: #ffffff; padding: 3px 10px; border-radius: 6px; font-weight: bold; font-size: 0.8rem; }
-    .badge-cap { background-color: #ca8a04; color: #ffffff; padding: 3px 10px; border-radius: 6px; font-weight: bold; font-size: 0.8rem; }
-    .badge-target { background-color: #059669; color: #ffffff; padding: 3px 10px; border-radius: 6px; font-weight: bold; font-size: 0.8rem; }
-</style>
-""", unsafe_allow_html=True)
 
-DB_FILE = "fpl_radar_db.json"
+    .metric-card {
+        min-height: 90px;
+    }
 
-default_data = {
-    "TOP4_TARGETS": {
-        "title": "🔥 Top 4 Defensive Targets for Upcoming Gameweeks",
-        "isTop4View": True,
-        "topTeams": [
-            {
-                "name": "Ipswich Town", 
-                "reason": "Conceded 5 Big Chances in latest match & high xGC (2.24)", 
-                "targetPosition": "Left Wings & Central Playmakers (Zone 14)", 
-                "recommendedPlayers": ["Saka (Arsenal)", "Palmer (Chelsea)"], 
-                "capRating": "9.5/10"
-            },
-            {
-                "name": "Everton", 
-                "reason": "Exposed space behind Right Back against fast counter-attacks", 
-                "targetPosition": "Left Wings & Pace Attackers", 
-                "recommendedPlayers": ["Martinelli (Arsenal)", "Semenyo (Bournemouth)"], 
-                "capRating": "8.2/10"
-            }
-        ]
-    },
-    "Ipswich": {
-        "title": "Ipswich Town Defensive Weakness Analysis",
-        "leftZone": {"level": "HIGH", "val": 85, "text": "Severely exploited left flank on crosses"},
-        "centerZone": {"level": "HIGH", "val": 90, "text": "Zone 14: Conceded 13 shots inside penalty box"},
-        "rightZone": {"level": "MED", "val": 50, "text": "Right Flank: Average coverage"},
-        "xGConceded": "2.24",
-        "bigChancesConceded": "5",
-        "setPieceVulnerability": "Very High (4 aerial headers conceded)",
-        "luckIndex": "Deservedly Conceded",
-        "targetAdvice": "🎯 Target/Captain right-wingers or central playmakers facing Ipswich next.",
-        "fixtures": ["vs Arsenal (H)", "vs Chelsea (A)"],
-        "recommendedPlayers": [
-            {"name": "Bukayo Saka", "team": "Arsenal", "pos": "MID", "price": "10.1m", "selectedBy": "34%", "isDiff": False},
-            {"name": "Cole Palmer", "team": "Chelsea", "pos": "MID", "price": "10.8m", "selectedBy": "52%", "isDiff": False}
-        ]
-    },
-    "Everton": {
-        "title": "Everton Defensive Weakness Analysis",
-        "leftZone": {"level": "LOW", "val": 25, "text": "Solid defensively on left flank"},
-        "centerZone": {"level": "MED", "val": 55, "text": "Conceded 9 shots in central box area"},
-        "rightZone": {"level": "HIGH", "val": 80, "text": "Clear vulnerability behind Right Back"},
-        "xGConceded": "1.44",
-        "bigChancesConceded": "1",
-        "setPieceVulnerability": "Low",
-        "luckIndex": "Good Luck Factor",
-        "targetAdvice": "🎯 Target Left Wingers attacking Everton's right flank.",
-        "fixtures": ["vs Man City (A)", "vs Fulham (H)"],
-        "recommendedPlayers": [
-            {"name": "Jeremy Doku", "team": "Man City", "pos": "MID", "price": "6.5m", "selectedBy": "4%", "isDiff": True},
-            {"name": "Antoine Semenyo", "team": "Bournemouth", "pos": "MID", "price": "5.6m", "selectedBy": "12%", "isDiff": True}
-        ]
+    .metric-value {
+        font-size: 22px;
+    }
+
+    .verdict-main {
+        font-size: 21px;
+    }
+
+    h1 {
+        font-size: 28px !important;
+    }
+
+    h2 {
+        font-size: 23px !important;
+    }
+
+    h3 {
+        font-size: 18px !important;
     }
 }
 
-def load_db():
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return default_data
-    return default_data
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
-def save_db(data):
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
 
-if "database" not in st.session_state:
-    st.session_state.database = load_db()
+# ============================================================
+# HELPERS
+# ============================================================
 
-# ---------------------------------------------------------
-# 2. Advanced Professional Pitch Function (Plotly)
-# ---------------------------------------------------------
-def draw_interactive_pitch(left_val, center_val, right_val, team_name):
+def safe_float(value, default=0.0):
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def safe_int(value, default=0):
+    try:
+        if value is None:
+            return default
+        return int(value)
+    except Exception:
+        return default
+
+
+def clamp(value, low, high):
+    return max(low, min(high, value))
+
+
+def pct(value):
+    return f"{safe_float(value):.1f}%"
+
+
+def money(value):
+    return f"£{safe_float(value):.1f}m"
+
+
+def badge_html(risk):
+    risk = str(risk)
+
+    if risk.lower() == "low":
+        cls = "badge-green"
+    elif risk.lower() == "medium":
+        cls = "badge-yellow"
+    else:
+        cls = "badge-red"
+
+    return f'<span class="badge {cls}">{risk}</span>'
+
+
+# ============================================================
+# FPL DATA ENGINE
+# ============================================================
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def fetch_json(url: str):
+    response = requests.get(
+        url,
+        timeout=REQUEST_TIMEOUT,
+        headers={
+            "User-Agent": "FPL-Radar/3.0"
+        },
+    )
+
+    response.raise_for_status()
+    return response.json()
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_fpl_data():
+
+    bootstrap = fetch_json(BOOTSTRAP_URL)
+    fixtures = fetch_json(FIXTURES_URL)
+
+    return {
+        "bootstrap": bootstrap,
+        "fixtures": fixtures,
+        "updated": datetime.now().isoformat(),
+    }
+
+
+def load_data_with_status():
+
+    try:
+        data = load_fpl_data()
+
+        return data, True, None
+
+    except Exception as e:
+
+        return None, False, str(e)
+
+
+# ============================================================
+# DATA NORMALIZATION
+# ============================================================
+
+def normalize_data(data):
+
+    bootstrap = data["bootstrap"]
+
+    teams_raw = bootstrap.get("teams", [])
+    players_raw = bootstrap.get("elements", [])
+    events_raw = bootstrap.get("events", [])
+    positions_raw = bootstrap.get("element_types", [])
+
+    teams = {}
+
+    for t in teams_raw:
+
+        teams[t["id"]] = {
+            "id": t["id"],
+            "name": t.get("name", ""),
+            "short_name": t.get("short_name", ""),
+            "code": t.get("code", 0),
+
+            "strength": safe_float(t.get("strength")),
+            "strength_attack_home": safe_float(
+                t.get("strength_attack_home")
+            ),
+            "strength_attack_away": safe_float(
+                t.get("strength_attack_away")
+            ),
+            "strength_defence_home": safe_float(
+                t.get("strength_defence_home")
+            ),
+            "strength_defence_away": safe_float(
+                t.get("strength_defence_away")
+            ),
+        }
+
+    positions = {
+        p["id"]: p.get("singular_name_short", "")
+        for p in positions_raw
+    }
+
+    players = []
+
+    for p in players_raw:
+
+        team_id = p.get("team")
+
+        team = teams.get(
+            team_id,
+            {
+                "name": "Unknown",
+                "short_name": "UNK",
+            },
+        )
+
+        player = {
+
+            "id": p.get("id"),
+
+            "name": (
+                f"{p.get('first_name', '')} "
+                f"{p.get('second_name', '')}"
+            ).strip(),
+
+            "web_name": p.get("web_name", ""),
+
+            "team_id": team_id,
+            "team": team.get("name", ""),
+            "team_short": team.get("short_name", ""),
+
+            "position": positions.get(
+                p.get("element_type"),
+                "?"
+            ),
+
+            "price": safe_float(
+                p.get("now_cost", 0)
+            ) / 10,
+
+            "total_points": safe_float(
+                p.get("total_points")
+            ),
+
+            "event_points": safe_float(
+                p.get("event_points")
+            ),
+
+            "form": safe_float(
+                p.get("form")
+            ),
+
+            "points_per_game": safe_float(
+                p.get("points_per_game")
+            ),
+
+            "selected_by": safe_float(
+                p.get("selected_by_percent")
+            ),
+
+            "minutes": safe_float(
+                p.get("minutes")
+            ),
+
+            "goals": safe_float(
+                p.get("goals_scored")
+            ),
+
+            "assists": safe_float(
+                p.get("assists")
+            ),
+
+            "clean_sheets": safe_float(
+                p.get("clean_sheets")
+            ),
+
+            "goals_conceded": safe_float(
+                p.get("goals_conceded")
+            ),
+
+            "saves": safe_float(
+                p.get("saves")
+            ),
+
+            "bonus": safe_float(
+                p.get("bonus")
+            ),
+
+            "bps": safe_float(
+                p.get("bps")
+            ),
+
+            "influence": safe_float(
+                p.get("influence")
+            ),
+
+            "creativity": safe_float(
+                p.get("creativity")
+            ),
+
+            "threat": safe_float(
+                p.get("threat")
+            ),
+
+            "ict_index": safe_float(
+                p.get("ict_index")
+            ),
+
+            "expected_goals": safe_float(
+                p.get("expected_goals")
+            ),
+
+            "expected_assists": safe_float(
+                p.get("expected_assists")
+            ),
+
+            "expected_goal_involvements": safe_float(
+                p.get("expected_goal_involvements")
+            ),
+
+            "expected_goals_per_90": safe_float(
+                p.get("expected_goals_per_90")
+            ),
+
+            "expected_assists_per_90": safe_float(
+                p.get("expected_assists_per_90")
+            ),
+
+            "expected_goal_involvements_per_90": safe_float(
+                p.get("expected_goal_involvements_per_90")
+            ),
+
+            "chance_next_round": safe_float(
+                p.get("chance_of_playing_next_round"),
+                100
+            ),
+
+            "chance_this_round": safe_float(
+                p.get("chance_of_playing_this_round"),
+                100
+            ),
+
+            "status": p.get("status", "a"),
+
+            "news": p.get("news", ""),
+
+            "starts": safe_float(
+                p.get("starts")
+            ),
+
+            "clean_sheets_per_90": safe_float(
+                p.get("clean_sheets_per_90")
+            ),
+
+            "form_rank": safe_float(
+                p.get("form_rank")
+            ),
+
+            "points_per_game_rank": safe_float(
+                p.get("points_per_game_rank")
+            ),
+        }
+
+        players.append(player)
+
+    events = []
+
+    for e in events_raw:
+
+        events.append(
+            {
+                "id": e.get("id"),
+                "name": e.get("name"),
+                "deadline": e.get("deadline_time"),
+                "finished": e.get("finished"),
+                "is_current": e.get("is_current"),
+                "is_next": e.get("is_next"),
+                "is_previous": e.get("is_previous"),
+                "average_score": e.get("average_entry_score"),
+                "highest_score": e.get("highest_score"),
+                "most_captained": e.get("most_captained"),
+                "top_element": e.get("top_element"),
+            }
+        )
+
+    fixtures = []
+
+    for f in data.get("fixtures", []):
+
+        fixtures.append(
+            {
+                "id": f.get("id"),
+                "event": f.get("event"),
+                "team_h": f.get("team_h"),
+                "team_a": f.get("team_a"),
+                "team_h_score": f.get("team_h_score"),
+                "team_a_score": f.get("team_a_score"),
+                "finished": f.get("finished"),
+                "difficulty_h": safe_int(
+                    f.get("team_h_difficulty")
+                ),
+                "difficulty_a": safe_int(
+                    f.get("team_a_difficulty")
+                ),
+                "kickoff": f.get("kickoff_time"),
+            }
+        )
+
+    return {
+        "teams": teams,
+        "players": players,
+        "events": events,
+        "fixtures": fixtures,
+    }
+
+
+# ============================================================
+# GAMEWEEK
+# ============================================================
+
+def get_current_gw(events):
+
+    current = [
+        e for e in events
+        if e.get("is_current")
+    ]
+
+    if current:
+        return current[0]["id"]
+
+    next_gw = [
+        e for e in events
+        if e.get("is_next")
+    ]
+
+    if next_gw:
+        return next_gw[0]["id"]
+
+    return 1
+
+
+# ============================================================
+# FIXTURE ENGINE
+# ============================================================
+
+def team_fixture_rows(data, team_id, gw=None, horizon=5):
+
+    fixtures = data["fixtures"]
+
+    if gw is None:
+        gw = get_current_gw(data["events"])
+
+    rows = []
+
+    for f in fixtures:
+
+        if f["event"] is None:
+            continue
+
+        if f["event"] < gw:
+            continue
+
+        if f["event"] > gw + horizon - 1:
+            continue
+
+        if f["team_h"] == team_id:
+
+            opponent = data["teams"].get(
+                f["team_a"],
+                {}
+            )
+
+            rows.append(
+                {
+                    "gw": f["event"],
+                    "opponent": opponent.get(
+                        "short_name",
+                        "?"
+                    ),
+                    "opponent_id": f["team_a"],
+                    "home": True,
+                    "difficulty": f["difficulty_h"],
+                    "kickoff": f["kickoff"],
+                }
+            )
+
+        elif f["team_a"] == team_id:
+
+            opponent = data["teams"].get(
+                f["team_h"],
+                {}
+            )
+
+            rows.append(
+                {
+                    "gw": f["event"],
+                    "opponent": opponent.get(
+                        "short_name",
+                        "?"
+                    ),
+                    "opponent_id": f["team_h"],
+                    "home": False,
+                    "difficulty": f["difficulty_a"],
+                    "kickoff": f["kickoff"],
+                }
+            )
+
+    rows.sort(key=lambda x: (
+        x["gw"],
+        x["kickoff"] or ""
+    ))
+
+    return rows
+
+
+def fixture_score(fixtures):
+
+    if not fixtures:
+        return 50
+
+    difficulties = [
+        safe_float(x["difficulty"], 3)
+        for x in fixtures
+    ]
+
+    avg = sum(difficulties) / len(difficulties)
+
+    # FPL difficulty 1-5.
+    # Lower = better.
+    return clamp(
+        100 - ((avg - 1) / 4) * 100,
+        0,
+        100,
+    )
+
+
+def fixture_label(score):
+
+    if score >= 75:
+        return "Excellent"
+
+    if score >= 60:
+        return "Good"
+
+    if score >= 45:
+        return "Mixed"
+
+    return "Difficult"
+
+
+# ============================================================
+# PLAYER ANALYTICS ENGINE
+# ============================================================
+
+def minutes_score(player):
+
+    chance = safe_float(
+        player["chance_next_round"],
+        100
+    )
+
+    minutes = safe_float(
+        player["minutes"]
+    )
+
+    starts = safe_float(
+        player["starts"]
+    )
+
+    if minutes <= 0:
+        base = 15
+
+    else:
+        base = min(
+            100,
+            45 + min(
+                55,
+                minutes / 1200 * 55
+            )
+        )
+
+    if starts > 0 and minutes > 0:
+        start_rate = clamp(
+            starts / max(1, minutes / 90),
+            0,
+            1,
+        )
+
+        base = (
+            base * 0.65
+            + start_rate * 100 * 0.35
+        )
+
+    return clamp(
+        base * chance / 100,
+        0,
+        100,
+    )
+
+
+def risk_score(player):
+
+    minutes = minutes_score(player)
+
+    injury_risk = (
+        100 - safe_float(
+            player["chance_next_round"],
+            100
+        )
+    )
+
+    low_minutes = 100 - minutes
+
+    news_penalty = (
+        15
+        if player.get("news")
+        else 0
+    )
+
+    risk = (
+        injury_risk * 0.45
+        + low_minutes * 0.45
+        + news_penalty * 0.10
+    )
+
+    return clamp(risk, 0, 100)
+
+
+def player_radar_score(player, data):
+
+    team_id = player["team_id"]
+
+    fixtures = team_fixture_rows(
+        data,
+        team_id,
+        horizon=5,
+    )
+
+    f_score = fixture_score(fixtures)
+
+    form = clamp(
+        safe_float(player["form"]) * 10,
+        0,
+        100,
+    )
+
+    xgi = clamp(
+        safe_float(
+            player["expected_goal_involvements_per_90"]
+        ) * 100,
+        0,
+        100,
+    )
+
+    ict = clamp(
+        safe_float(player["ict_index"]),
+        0,
+        100,
+    )
+
+    mins = minutes_score(player)
+
+    risk = risk_score(player)
+
+    # Universal score
+    score = (
+        form * 0.20
+        + xgi * 0.25
+        + ict * 0.15
+        + mins * 0.20
+        + f_score * 0.20
+    )
+
+    score -= risk * 0.15
+
+    return clamp(score, 0, 100)
+
+
+def captain_score(player, data):
+
+    fixtures = team_fixture_rows(
+        data,
+        player["team_id"],
+        horizon=3,
+    )
+
+    f_score = fixture_score(fixtures)
+
+    form = clamp(
+        safe_float(player["form"]) * 10,
+        0,
+        100,
+    )
+
+    xgi = clamp(
+        safe_float(
+            player["expected_goal_involvements_per_90"]
+        ) * 100,
+        0,
+        100,
+    )
+
+    mins = minutes_score(player)
+
+    home_bonus = 0
+
+    if fixtures and fixtures[0]["home"]:
+        home_bonus = 7
+
+    bonus = clamp(
+        safe_float(player["bonus"]) / 10,
+        0,
+        100,
+    )
+
+    risk = risk_score(player)
+
+    score = (
+        xgi * 0.32
+        + form * 0.20
+        + f_score * 0.25
+        + mins * 0.15
+        + bonus * 0.08
+        + home_bonus
+    )
+
+    score -= risk * 0.15
+
+    return clamp(score, 0, 100)
+
+
+def differential_score(player, data):
+
+    radar = player_radar_score(
+        player,
+        data
+    )
+
+    ownership = safe_float(
+        player["selected_by"]
+    )
+
+    ownership_score = clamp(
+        100 - ownership * 4,
+        0,
+        100,
+    )
+
+    # Strong differential but not blindly low ownership
+    xgi = clamp(
+        safe_float(
+            player["expected_goal_involvements_per_90"]
+        ) * 100,
+        0,
+        100,
+    )
+
+    minutes = minutes_score(player)
+
+    score = (
+        radar * 0.40
+        + ownership_score * 0.25
+        + xgi * 0.20
+        + minutes * 0.15
+    )
+
+    return clamp(score, 0, 100)
+
+
+# ============================================================
+# RANKING FUNCTIONS
+# ============================================================
+
+def add_scores(players, data):
+
+    output = []
+
+    for p in players:
+
+        row = dict(p)
+
+        row["radar_score"] = player_radar_score(
+            p,
+            data
+        )
+
+        row["captain_score"] = captain_score(
+            p,
+            data
+        )
+
+        row["differential_score"] = differential_score(
+            p,
+            data
+        )
+
+        row["minutes_score"] = minutes_score(
+            p
+        )
+
+        row["risk_score"] = risk_score(
+            p
+        )
+
+        output.append(row)
+
+    return output
+
+
+# ============================================================
+# DEFENSIVE ANALYTICS
+# ============================================================
+
+def team_defensive_profile(team, data):
+
+    team_id = team["id"]
+
+    # We derive a relative defensive profile from FPL
+    # team strength values + player defensive output.
+    strength_home = safe_float(
+        team["strength_defence_home"]
+    )
+
+    strength_away = safe_float(
+        team["strength_defence_away"]
+    )
+
+    strength = (
+        strength_home
+        + strength_away
+    ) / 2
+
+    all_teams = list(
+        data["teams"].values()
+    )
+
+    strengths = [
+        safe_float(
+            t["strength_defence_home"]
+        )
+        + safe_float(
+            t["strength_defence_away"]
+        )
+        for t in all_teams
+    ]
+
+    min_s = min(strengths) if strengths else 1
+    max_s = max(strengths) if strengths else 100
+
+    defensive_strength = (
+        (strength * 2 - min_s)
+        / max(
+            1,
+            max_s - min_s
+        )
+    )
+
+    # Convert to 0-100:
+    # stronger defence = lower vulnerability
+    vulnerability = clamp(
+        100 - defensive_strength * 100,
+        0,
+        100,
+    )
+
+    # Tactical zone proxy.
+    # These are analytical proxies, not claimed Opta data.
+    left = clamp(
+        vulnerability
+        * 0.95
+        + (100 - strength_home) * 0.05,
+        0,
+        100,
+    )
+
+    center = clamp(
+        vulnerability
+        * 1.08,
+        0,
+        100,
+    )
+
+    right = clamp(
+        vulnerability
+        * 0.92
+        + (100 - strength_away) * 0.08,
+        0,
+        100,
+    )
+
+    return {
+        "defensive_strength": clamp(
+            100 - vulnerability,
+            0,
+            100
+        ),
+        "vulnerability": vulnerability,
+        "left": left,
+        "center": center,
+        "right": right,
+        "strength_home": strength_home,
+        "strength_away": strength_away,
+    }
+
+
+# ============================================================
+# TACTICAL PITCH
+# ============================================================
+
+def draw_interactive_pitch(
+    left_val,
+    center_val,
+    right_val,
+    team_name,
+):
+
     fig = go.Figure()
 
-    fig.add_shape(type="rect", x0=0, y0=0, x1=120, y1=80, fillcolor="#0f2b22", line=dict(color="white", width=2))
-    fig.add_shape(type="line", x0=60, y0=0, x1=60, y1=80, line=dict(color="white", width=2))
-    fig.add_shape(type="circle", x0=45, y0=25, x1=75, y1=55, line=dict(color="white", width=2), fillcolor="rgba(0,0,0,0)")
-    fig.add_shape(type="rect", x0=102, y0=18, x1=120, y1=62, fillcolor="rgba(0,0,0,0)", line=dict(color="white", width=2))
-    fig.add_shape(type="rect", x0=114, y0=30, x1=120, y1=50, fillcolor="rgba(0,0,0,0)", line=dict(color="white", width=2))
+    # Pitch
+    fig.add_shape(
+        type="rect",
+        x0=0,
+        y0=0,
+        x1=100,
+        y1=60,
+        line=dict(
+            color="rgba(255,255,255,.35)",
+            width=2,
+        ),
+        fillcolor="rgba(0,0,0,0)",
+    )
 
-    get_color = lambda v: f"rgba(239, 68, 68, {v/120})" if v > 70 else (f"rgba(249, 115, 22, {v/120})" if v > 40 else "rgba(34, 197, 94, 0.3)")
+    # Vertical zones
+    for x in [33.33, 66.66]:
+        fig.add_shape(
+            type="line",
+            x0=x,
+            y0=0,
+            x1=x,
+            y1=60,
+            line=dict(
+                color="rgba(255,255,255,.20)",
+                width=1,
+            ),
+        )
 
-    fig.add_shape(type="rect", x0=80, y0=53, x1=120, y1=80, fillcolor=get_color(left_val), line=dict(color="red" if left_val > 70 else "orange", width=1.5))
-    fig.add_shape(type="rect", x0=80, y0=27, x1=120, y1=52, fillcolor=get_color(center_val), line=dict(color="red" if center_val > 70 else "orange", width=1.5))
-    fig.add_shape(type="rect", x0=80, y0=0, x1=120, y1=26, fillcolor=get_color(right_val), line=dict(color="red" if right_val > 70 else "orange", width=1.5))
+    # Zones
+    zones = [
+        (
+            0,
+            33.33,
+            left_val,
+            "LEFT",
+        ),
+        (
+            33.33,
+            66.66,
+            center_val,
+            "CENTER",
+        ),
+        (
+            66.66,
+            100,
+            right_val,
+            "RIGHT",
+        ),
+    ]
 
-    fig.add_annotation(x=100, y=66, text=f"Left Flank<br>{left_val}%", showarrow=False, font=dict(color="white", size=12, family="Arial Black"))
-    fig.add_annotation(x=100, y=40, text=f"Zone 14 / Center<br>{center_val}%", showarrow=False, font=dict(color="white", size=12, family="Arial Black"))
-    fig.add_annotation(x=100, y=13, text=f"Right Flank<br>{right_val}%", showarrow=False, font=dict(color="white", size=12, family="Arial Black"))
+    for x0, x1, value, label in zones:
+
+        alpha = 0.15 + value / 100 * 0.55
+
+        fig.add_shape(
+            type="rect",
+            x0=x0,
+            y0=0,
+            x1=x1,
+            y1=60,
+            fillcolor=(
+                f"rgba(255,80,80,{alpha})"
+            ),
+            line=dict(width=0),
+        )
+
+        fig.add_annotation(
+            x=(x0 + x1) / 2,
+            y=30,
+            text=(
+                f"<b>{label}</b><br>"
+                f"{value:.0f}/100"
+            ),
+            showarrow=False,
+            font=dict(
+                size=15,
+                color="white",
+            ),
+        )
 
     fig.update_layout(
-        title=dict(text=f"Tactical Defensive Radar: {team_name}", font=dict(color="#00ff87", size=16)),
-        xaxis=dict(visible=False, range=[-2, 122]),
-        yaxis=dict(visible=False, range=[-2, 82]),
-        height=380,
-        margin=dict(l=10, r=10, t=40, b=10),
+        title=f"{team_name} — Defensive Vulnerability",
+        height=390,
+        margin=dict(
+            l=10,
+            r=10,
+            t=45,
+            b=10,
+        ),
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)"
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(
+            visible=False,
+            range=[0, 100],
+        ),
+        yaxis=dict(
+            visible=False,
+            range=[0, 60],
+        ),
+        font=dict(
+            color="white"
+        ),
     )
+
     return fig
 
-# ---------------------------------------------------------
-# 3. Sidebar & AI Processing Configuration (Gemini 3.8)
-# ---------------------------------------------------------
-st.sidebar.title("🎯 FPL Radar Pro")
-st.sidebar.caption("Interactive Tactical Fantasy Assistant")
 
-api_key = st.sidebar.text_input("🔑 Gemini API Key", type="password")
-uploaded_files = st.sidebar.file_uploader("📁 Upload Round Screenshots", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+# ============================================================
+# RADAR VERDICT
+# ============================================================
 
-if uploaded_files and st.sidebar.button("⚡ Analyze Screenshots & Update Radar"):
-    if not api_key:
-        st.sidebar.error("Please enter a valid Gemini API Key!")
+def verdict_for_player(
+    player,
+    data,
+    purpose="general",
+):
+
+    if purpose == "captain":
+        score = captain_score(
+            player,
+            data
+        )
+
+    elif purpose == "differential":
+        score = differential_score(
+            player,
+            data
+        )
+
     else:
-        with st.spinner("Analyzing tactical maps & stats via Gemini 3.8 AI..."):
-            try:
-                client = genai.Client(api_key=api_key)
-                images = [Image.open(f) for f in uploaded_files]
-                
-                prompt = """
-                Analyze FPL tactical stats images and extract defensive data in 100% English.
-                Return ONLY a valid JSON object using this exact format without extra markdown text:
-                {
-                    "TOP4_TARGETS": {
-                        "title": "Top 4 Defensive Targets", 
-                        "isTop4View": true, 
-                        "topTeams": [
-                            {
-                                "name": "Team Name", 
-                                "reason": "reason here", 
-                                "targetPosition": "Wings / Center", 
-                                "recommendedPlayers": ["Player 1", "Player 2"], 
-                                "capRating": "9.0/10"
-                            }
-                        ]
-                    },
-                    "TeamKeyWithoutSpaces": {
-                        "title": "Team Full Name Defensive Weakness Analysis",
-                        "leftZone": {"level": "HIGH", "val": 80, "text": "description"},
-                        "centerZone": {"level": "HIGH", "val": 85, "text": "description"},
-                        "rightZone": {"level": "MED", "val": 40, "text": "description"},
-                        "xGConceded": "1.85",
-                        "bigChancesConceded": "4",
-                        "setPieceVulnerability": "Risk assessment",
-                        "luckIndex": "Luck factor",
-                        "targetAdvice": "Fantasy advice",
-                        "fixtures": ["Fixture 1"],
-                        "recommendedPlayers": [
-                            {"name": "Player Name", "team": "Team", "pos": "MID", "price": "7.5m", "selectedBy": "15%", "isDiff": false}
-                        ]
-                    }
-                }
-                """
-                # استدعاء أحدث نموذج gemini-3.8-flash
-                res = client.models.generate_content(model="gemini-3.8-flash", contents=[prompt, *images])
-                clean_json = res.text.replace("```json", "").replace("```", "").strip()
-                new_data = json.loads(clean_json)
-                
-                for k, v in new_data.items():
-                    st.session_state.database[k] = v
-                    
-                save_db(st.session_state.database)
-                st.sidebar.success("✅ Radar updated successfully via Gemini 3.8!")
-            except Exception as e:
-                st.sidebar.error(f"Error processing images: {e}")
+        score = player_radar_score(
+            player,
+            data
+        )
 
-# ---------------------------------------------------------
-# 4. Main Application Interface
-# ---------------------------------------------------------
-st.title("🎯 FPL Radar - Ultimate Fantasy Analytics")
+    risk = risk_score(player)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Club Radar & Vulnerabilities", 
-    "⚔️ Head-To-Head (H2H)", 
-    "🚀 Differential Scout", 
-    "👑 Captaincy Planner",
-    "📱 Social Media Generator"
-])
+    if risk < 25:
+        risk_label = "Low"
 
-# TAB 1: Club Radar & Vulnerabilities
-with tab1:
-    teams_dict = {"🔥 Top 4 Defensive Targets": "TOP4_TARGETS"}
-    for k in st.session_state.database.keys():
-        if k != "TOP4_TARGETS":
-            teams_dict[st.session_state.database[k].get("title", k)] = k
+    elif risk < 55:
+        risk_label = "Medium"
 
-    selected_team_label = st.selectbox("Select View or Team Analysis:", list(teams_dict.keys()))
-    selected_key = teams_dict[selected_team_label]
-    team_data = st.session_state.database.get(selected_key, {})
-
-    if team_data.get("isTop4View"):
-        st.subheader(team_data["title"])
-        for idx, t in enumerate(team_data.get("topTeams", []), 1):
-            st.markdown(f"""
-            <div class="stat-card">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0;">#{idx} {t['name']}</h3>
-                    <span class="badge-cap">Captaincy Rating: {t.get('capRating', '9.0/10')}</span>
-                </div>
-                <p style="margin:10px 0;"><b>Tactical Reason:</b> {t['reason']}</p>
-                <p style="margin:5px 0;"><b>Target Position:</b> <span class="badge-target">{t['targetPosition']}</span></p>
-                <p style="margin:5px 0;"><b>Recommended Players:</b> {", ".join(t.get('recommendedPlayers', []))}</p>
-            </div>
-            """, unsafe_allow_html=True)
     else:
-        col_left, col_right = st.columns([1.5, 1])
-        
-        with col_left:
-            fig = draw_interactive_pitch(
-                team_data.get('leftZone', {}).get('val', 50), 
-                team_data.get('centerZone', {}).get('val', 50), 
-                team_data.get('rightZone', {}).get('val', 50), 
-                team_data.get('title', selected_key)
+        risk_label = "High"
+
+    if score >= 80:
+        confidence = "Very High"
+
+    elif score >= 70:
+        confidence = "High"
+
+    elif score >= 60:
+        confidence = "Medium"
+
+    else:
+        confidence = "Low"
+
+    reasons = []
+
+    if safe_float(player["form"]) >= 5:
+        reasons.append("strong recent form")
+
+    if safe_float(
+        player["expected_goal_involvements_per_90"]
+    ) >= 0.40:
+        reasons.append("strong xGI/90")
+
+    if minutes_score(player) >= 75:
+        reasons.append("good minutes security")
+
+    fixtures = team_fixture_rows(
+        data,
+        player["team_id"],
+        horizon=3,
+    )
+
+    f_score = fixture_score(fixtures)
+
+    if f_score >= 65:
+        reasons.append("favorable upcoming fixtures")
+
+    if not reasons:
+        reasons.append("balanced underlying profile")
+
+    return {
+        "score": score,
+        "risk": risk_label,
+        "confidence": confidence,
+        "reason": ", ".join(reasons),
+    }
+
+
+def render_verdict(
+    title,
+    main,
+    reason,
+    confidence="High",
+    risk="Low",
+):
+
+    st.markdown(
+        f"""
+<div class="verdict">
+
+<div class="verdict-title">
+🎯 RADAR VERDICT
+</div>
+
+<div class="verdict-main">
+{main}
+</div>
+
+<div style="margin-top:8px">
+{badge_html(risk)}
+<span class="badge badge-green">
+Confidence: {confidence}
+</span>
+</div>
+
+<div class="verdict-text">
+{reason}
+</div>
+
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+def sidebar(data):
+
+    st.sidebar.markdown(
+        """
+# 🎯 FPL RADAR
+### Ultimate FPL Analytics
+"""
+    )
+
+    st.sidebar.caption(
+        f"Version {APP_VERSION}"
+    )
+
+    st.sidebar.divider()
+
+    current_gw = get_current_gw(
+        data["events"]
+    )
+
+    st.sidebar.markdown(
+        "### 📅 Gameweek"
+    )
+
+    gw_options = [
+        e["id"]
+        for e in data["events"]
+    ]
+
+    if not gw_options:
+        gw_options = [current_gw]
+
+    selected_gw = st.sidebar.selectbox(
+        "Select GW",
+        gw_options,
+        index=(
+            gw_options.index(current_gw)
+            if current_gw in gw_options
+            else 0
+        ),
+        label_visibility="collapsed",
+    )
+
+    st.session_state["selected_gw"] = selected_gw
+
+    st.sidebar.divider()
+
+    st.sidebar.markdown(
+        "### 📍 Navigation"
+    )
+
+    pages = {
+        "🏠 Dashboard": "Dashboard",
+        "🛡️ Defensive Radar": "Defensive Radar",
+        "⚔️ Head-to-Head": "Head-to-Head",
+        "💎 Differential Scout": "Differential Scout",
+        "👑 Captaincy Planner": "Captaincy Planner",
+        "🔄 Transfer Planner": "Transfer Planner",
+        "🧠 Team Optimizer": "Team Optimizer",
+        "🤖 Ask FPL Radar": "Ask FPL Radar",
+    }
+
+    page = st.sidebar.selectbox(
+        "Navigation",
+        list(pages.keys()),
+        label_visibility="collapsed",
+    )
+
+    st.session_state["page"] = pages[page]
+
+    st.sidebar.divider()
+
+    st.sidebar.markdown(
+        "### ⚙️ Settings"
+    )
+
+    st.sidebar.caption(
+        f"Data updated: "
+        f"{data.get('updated', '')[:19]}"
+    )
+
+    if st.sidebar.button(
+        "🔄 Refresh FPL Data",
+        use_container_width=True,
+    ):
+        st.cache_data.clear()
+        st.rerun()
+
+    return st.session_state["page"]
+
+
+# ============================================================
+# DASHBOARD
+# ============================================================
+
+def dashboard(data):
+
+    st.title("🎯 FPL Radar Dashboard")
+
+    current_gw = get_current_gw(
+        data["events"]
+    )
+
+    players = add_scores(
+        data["players"],
+        data
+    )
+
+    active_players = [
+        p for p in players
+        if p["status"] == "a"
+    ]
+
+    captain_rank = sorted(
+        active_players,
+        key=lambda x: x["captain_score"],
+        reverse=True,
+    )[:10]
+
+    diff_rank = sorted(
+        active_players,
+        key=lambda x: x["differential_score"],
+        reverse=True,
+    )[:10]
+
+    # Metrics
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        st.markdown(
+            f"""
+<div class="metric-card">
+<div class="metric-label">CURRENT GAMEWEEK</div>
+<div class="metric-value">GW {current_gw}</div>
+<div class="metric-sub">FPL data engine</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    with c2:
+        st.markdown(
+            f"""
+<div class="metric-card">
+<div class="metric-label">PLAYERS</div>
+<div class="metric-value">{len(active_players)}</div>
+<div class="metric-sub">active players</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    with c3:
+        st.markdown(
+            f"""
+<div class="metric-card">
+<div class="metric-label">TEAMS</div>
+<div class="metric-value">{len(data["teams"])}</div>
+<div class="metric-sub">Premier League clubs</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    with c4:
+        next_event = next(
+            (
+                e for e in data["events"]
+                if e["is_next"]
+            ),
+            None,
+        )
+
+        label = (
+            next_event["name"]
+            if next_event
+            else f"GW {current_gw}"
+        )
+
+        st.markdown(
+            f"""
+<div class="metric-card">
+<div class="metric-label">NEXT GW</div>
+<div class="metric-value">
+{label}
+</div>
+<div class="metric-sub">planning window</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+    st.write("")
+
+    left, right = st.columns(
+        [1.15, 1]
+    )
+
+    # Captain
+    with left:
+
+        st.subheader(
+            "👑 Captain Radar"
+        )
+
+        for i, p in enumerate(
+            captain_rank[:5],
+            1,
+        ):
+
+            v = verdict_for_player(
+                p,
+                data,
+                "captain",
             )
-            st.plotly_chart(fig, use_container_width=True)
-            st.info(team_data.get("targetAdvice", ""))
 
-        with col_right:
-            st.write("### 📈 Tactical Indicators")
-            st.markdown(f"""
-            <div class="stat-card">
-                <small>xG Conceded (xGC)</small>
-                <h2 style="color:#00ff87; margin:0;">{team_data.get('xGConceded', 'N/A')}</h2>
-            </div>
-            <div class="stat-card">
-                <small>Big Chances Conceded</small>
-                <h2 style="color:#f97316; margin:0;">{team_data.get('bigChancesConceded', 'N/A')}</h2>
-            </div>
-            <div class="stat-card">
-                <small>Set-Pieces & Aerial Risk</small>
-                <p style="color:#f87171; margin:0; font-weight:bold;">{team_data.get('setPieceVulnerability', 'N/A')}</p>
-            </div>
-            <div class="stat-card">
-                <small>Luck Index Factor</small>
-                <p style="color:#38bdf8; margin:0; font-weight:bold;">{team_data.get('luckIndex', 'N/A')}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f"""
+<div class="player-row">
+<b>#{i} {p["name"]}</b>
+<br>
+{p["team_short"]} · {p["position"]} · {money(p["price"])}
+<br>
+Radar: <b>{p["captain_score"]:.1f}</b>
+&nbsp; Form: {p["form"]}
+&nbsp; xGI/90: {p["expected_goal_involvements_per_90"]:.2f}
+<br>
+{badge_html(v["risk"])}
+<span class="badge badge-green">
+{v["confidence"]}
+</span>
+</div>
+""",
+                unsafe_allow_html=True,
+            )
 
-        st.markdown("---")
-        st.write("### 🎯 Recommended Target Players")
-        rec_players = team_data.get("recommendedPlayers", [])
-        if rec_players:
-            p_cols = st.columns(len(rec_players))
-            for idx, p in enumerate(rec_players):
-                with p_cols[idx]:
-                    st.markdown(f"""
-                    <div class="stat-card" style="text-align:center;">
-                        <h4 style="margin:0;">{p['name']}</h4>
-                        <p style="margin:5px 0;">{p['team']} | {p['pos']}</p>
-                        <p style="margin:5px 0;"><b>Price:</b> {p['price']} | <b>Owned By:</b> {p['selectedBy']}</p>
-                        {'<span class="badge-diff">💎 Differential Gem</span>' if p.get('isDiff') else '<span class="badge-target">🔥 Premium Pick</span>'}
-                    </div>
-                    """, unsafe_allow_html=True)
+    # Differentials
+    with right:
 
-# TAB 2: H2H Comparison
-with tab2:
-    st.subheader("⚔️ Direct Defensive H2H Comparison")
-    avail_teams = [k for k in st.session_state.database.keys() if k != "TOP4_TARGETS"]
-    
-    if len(avail_teams) >= 2:
-        c1, c2 = st.columns(2)
-        with c1:
-            t1 = st.selectbox("First Team:", avail_teams, index=0, key="h2h_t1")
-        with c2:
-            t2 = st.selectbox("Second Team:", avail_teams, index=1 if len(avail_teams)>1 else 0, key="h2h_t2")
-            
-        d1, d2 = st.session_state.database[t1], st.session_state.database[t2]
-        
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.plotly_chart(draw_interactive_pitch(d1['leftZone']['val'], d1['centerZone']['val'], d1['rightZone']['val'], t1), use_container_width=True)
-            st.metric("xG Conceded", d1.get("xGConceded", "N/A"))
-        with col_b:
-            st.plotly_chart(draw_interactive_pitch(d2['leftZone']['val'], d2['centerZone']['val'], d2['rightZone']['val'], t2), use_container_width=True)
-            st.metric("xG Conceded", d2.get("xGConceded", "N/A"))
+        st.subheader(
+            "💎 Differential Radar"
+        )
 
-# TAB 3: Differential Scout
-with tab3:
-    st.subheader("🚀 Hidden Differential Targets (Ownership < 15%)")
-    diffs = []
-    for k, v in st.session_state.database.items():
-        if k != "TOP4_TARGETS":
-            for p in v.get("recommendedPlayers", []):
-                if p.get("isDiff"):
-                    diffs.append({**p, "targetTeam": v.get("title", k)})
-                    
-    if diffs:
-        for d in diffs:
-            st.markdown(f"""
-            <div class="stat-card">
-                <span class="badge-diff">💎 Differential Gem</span>
-                <h3 style="display:inline; margin-left:10px;">{d['name']} ({d['team']})</h3>
-                <p style="margin:8px 0;"><b>Price:</b> {d['price']} | <b>Ownership:</b> {d['selectedBy']} | <b>Targeting:</b> {d['targetTeam']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+        for i, p in enumerate(
+            diff_rank[:5],
+            1,
+        ):
+
+            st.markdown(
+                f"""
+<div class="player-row">
+<b>#{i} {p["name"]}</b>
+<br>
+{p["team_short"]} · {p["position"]}
+<br>
+Ownership: <b>{pct(p["selected_by"])}</b>
+&nbsp; Radar: <b>{p["differential_score"]:.1f}</b>
+<br>
+Price: {money(p["price"])}
+</div>
+""",
+                unsafe_allow_html=True,
+            )
+
+    st.divider()
+
+    # Best fixtures
+    st.subheader(
+        "📅 Best Fixture Runs"
+    )
+
+    fixture_rows = []
+
+    for team in data["teams"].values():
+
+        fixtures = team_fixture_rows(
+            data,
+            team["id"],
+            horizon=5,
+        )
+
+        score = fixture_score(
+            fixtures
+        )
+
+        fixture_rows.append(
+            {
+                "Team": team["name"],
+                "Fixtures": " · ".join(
+                    [
+                        f"GW{x['gw']} {x['opponent']}"
+                        for x in fixtures
+                    ]
+                ),
+                "Fixture Score": round(
+                    score,
+                    1,
+                ),
+                "Verdict": fixture_label(
+                    score
+                ),
+            }
+        )
+
+    fixture_df = pd.DataFrame(
+        fixture_rows
+    ).sort_values(
+        "Fixture Score",
+        ascending=False,
+    )
+
+    st.dataframe(
+        fixture_df.head(10),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.write("")
+
+    if captain_rank:
+
+        best = captain_rank[0]
+
+        v = verdict_for_player(
+            best,
+            data,
+            "captain",
+        )
+
+        render_verdict(
+            "Captain",
+            f"{best['name']} — {v['score']:.1f}/100",
+            v["reason"],
+            v["confidence"],
+            v["risk"],
+        )
+
+
+# ============================================================
+# DEFENSIVE RADAR
+# ============================================================
+
+def defensive_radar(data):
+
+    st.title(
+        "🛡️ Defensive Radar"
+    )
+
+    teams = data["teams"]
+
+    team_names = {
+        t["name"]: t["id"]
+        for t in teams.values()
+    }
+
+    selected_name = st.selectbox(
+        "Select team",
+        sorted(team_names.keys()),
+    )
+
+    team_id = team_names[
+        selected_name
+    ]
+
+    team = teams[team_id]
+
+    profile = team_defensive_profile(
+        team,
+        data
+    )
+
+    col1, col2 = st.columns(
+        [1.1, 1]
+    )
+
+    with col1:
+
+        fig = draw_interactive_pitch(
+            profile["left"],
+            profile["center"],
+            profile["right"],
+            selected_name,
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
+
+    with col2:
+
+        st.subheader(
+            "📊 Defensive Profile"
+        )
+
+        metrics = [
+            (
+                "Defensive Strength",
+                profile["defensive_strength"]
+            ),
+            (
+                "Overall Vulnerability",
+                profile["vulnerability"]
+            ),
+            (
+                "Left Zone",
+                profile["left"]
+            ),
+            (
+                "Central Zone",
+                profile["center"]
+            ),
+            (
+                "Right Zone",
+                profile["right"]
+            ),
+        ]
+
+        for label, value in metrics:
+
+            st.progress(
+                int(clamp(value, 0, 100))
+            )
+
+            st.caption(
+                f"{label}: {value:.0f}/100"
+            )
+
+    st.divider()
+
+    st.subheader(
+        "🎯 Where to Attack"
+    )
+
+    zones = {
+        "Left": profile["left"],
+        "Center": profile["center"],
+        "Right": profile["right"],
+    }
+
+    weakest = max(
+        zones,
+        key=zones.get
+    )
+
+    st.success(
+        f"Primary target zone: **{weakest}**"
+    )
+
+    st.subheader(
+        "⚡ Best attacking targets"
+    )
+
+    players = add_scores(
+        data["players"],
+        data
+    )
+
+    attacking = [
+        p for p in players
+        if p["team_id"] != team_id
+        and p["position"] in ["FWD", "MID"]
+        and p["status"] == "a"
+    ]
+
+    attacking = sorted(
+        attacking,
+        key=lambda x: x["radar_score"],
+        reverse=True,
+    )[:10]
+
+    rows = []
+
+    for p in attacking:
+
+        rows.append(
+            {
+                "Player": p["name"],
+                "Team": p["team_short"],
+                "Pos": p["position"],
+                "Price": money(p["price"]),
+                "Ownership": pct(
+                    p["selected_by"]
+                ),
+                "Form": p["form"],
+                "xGI/90": round(
+                    p["expected_goal_involvements_per_90"],
+                    2,
+                ),
+                "Radar": round(
+                    p["radar_score"],
+                    1,
+                ),
+            }
+        )
+
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    render_verdict(
+        "Attack",
+        f"Attack the {weakest} zone",
+        (
+            f"{selected_name} shows the highest relative "
+            f"vulnerability on the {weakest.lower()} side. "
+            f"Use high-Radar attackers with secure minutes "
+            f"and favorable fixtures."
+        ),
+        "Medium",
+        "Medium",
+    )
+
+
+# ============================================================
+# H2H
+# ============================================================
+
+def h2h(data):
+
+    st.title(
+        "⚔️ Head-to-Head"
+    )
+
+    team_names = sorted(
+        [
+            t["name"]
+            for t in data["teams"].values()
+        ]
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        team_a_name = st.selectbox(
+            "Team A",
+            team_names,
+            index=0,
+        )
+
+    with col2:
+
+        default_b = (
+            1 if len(team_names) > 1
+            else 0
+        )
+
+        team_b_name = st.selectbox(
+            "Team B",
+            team_names,
+            index=default_b,
+        )
+
+    if team_a_name == team_b_name:
+
+        st.warning(
+            "Please select two different teams."
+        )
+        return
+
+    team_a = next(
+        t for t in data["teams"].values()
+        if t["name"] == team_a_name
+    )
+
+    team_b = next(
+        t for t in data["teams"].values()
+        if t["name"] == team_b_name
+    )
+
+    profile_a = team_defensive_profile(
+        team_a,
+        data
+    )
+
+    profile_b = team_defensive_profile(
+        team_b,
+        data
+    )
+
+    fixtures_a = team_fixture_rows(
+        data,
+        team_a["id"],
+        horizon=5,
+    )
+
+    fixtures_b = team_fixture_rows(
+        data,
+        team_b["id"],
+        horizon=5,
+    )
+
+    fixture_a_score = fixture_score(
+        fixtures_a
+    )
+
+    fixture_b_score = fixture_score(
+        fixtures_b
+    )
+
+    players = add_scores(
+        data["players"],
+        data
+    )
+
+    a_players = [
+        p for p in players
+        if p["team_id"] == team_a["id"]
+    ]
+
+    b_players = [
+        p for p in players
+        if p["team_id"] == team_b["id"]
+    ]
+
+    def team_attack_score(
+        team_players
+    ):
+
+        values = [
+            p["radar_score"]
+            for p in team_players
+            if p["status"] == "a"
+        ]
+
+        if not values:
+            return 0
+
+        return sum(
+            sorted(
+                values,
+                reverse=True
+            )[:5]
+        ) / min(
+            5,
+            len(values)
+        )
+
+    attack_a = team_attack_score(
+        a_players
+    )
+
+    attack_b = team_attack_score(
+        b_players
+    )
+
+    # Comparison
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+
+        st.metric(
+            "Defensive Strength",
+            f"{profile_a['defensive_strength']:.0f}",
+            f"{profile_a['defensive_strength'] - profile_b['defensive_strength']:+.0f} vs B",
+        )
+
+    with c2:
+
+        st.metric(
+            "Attack Radar",
+            f"{attack_a:.0f}",
+            f"{attack_a - attack_b:+.0f} vs B",
+        )
+
+    with c3:
+
+        st.metric(
+            "Fixture Score",
+            f"{fixture_a_score:.0f}",
+            f"{fixture_a_score - fixture_b_score:+.0f} vs B",
+        )
+
+    st.divider()
+
+    comparison = pd.DataFrame(
+        {
+            "Metric": [
+                "Defensive Strength",
+                "Vulnerability",
+                "Attack Radar",
+                "Fixture Score",
+                "Left Vulnerability",
+                "Center Vulnerability",
+                "Right Vulnerability",
+            ],
+            team_a_name: [
+                profile_a["defensive_strength"],
+                profile_a["vulnerability"],
+                attack_a,
+                fixture_a_score,
+                profile_a["left"],
+                profile_a["center"],
+                profile_a["right"],
+            ],
+            team_b_name: [
+                profile_b["defensive_strength"],
+                profile_b["vulnerability"],
+                attack_b,
+                fixture_b_score,
+                profile_b["left"],
+                profile_b["center"],
+                profile_b["right"],
+            ],
+        }
+    )
+
+    st.dataframe(
+        comparison.round(1),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    # Best target
+    target_team = team_b
+
+    target_players = [
+        p for p in players
+        if p["team_id"] == target_team["id"]
+        and p["status"] == "a"
+    ]
+
+    # Attacking target is from team A if attacking B.
+    attacking_targets = sorted(
+        [
+            p for p in players
+            if p["team_id"] == team_a["id"]
+            and p["status"] == "a"
+            and p["position"] in ["FWD", "MID"]
+        ],
+        key=lambda x: x["radar_score"],
+        reverse=True,
+    )
+
+    best_target = (
+        attacking_targets[0]
+        if attacking_targets
+        else None
+    )
+
+    if attack_a >= attack_b:
+
+        winner = team_a_name
+
     else:
-        st.info("No differential players found yet. Upload screenshots to extract new recommendations.")
 
-# TAB 4: Captaincy Planner
-with tab4:
-    st.subheader("👑 Expected Captaincy Planner")
-    avail_targets = [k for k in st.session_state.database.keys() if k != "TOP4_TARGETS"]
-    
-    col_c1, col_c2, col_c3 = st.columns(3)
-    with col_c1:
-        p1_name = st.text_input("Player Name 1:", "Bukayo Saka", key="cap1_n")
-        p1_form = st.slider("Attack Form (xGI):", 0.0, 2.0, 0.8, key="cap1_f")
-        p1_target = st.selectbox("Opponent:", avail_targets, key="cap1_t")
-    with col_c2:
-        p2_name = st.text_input("Player Name 2:", "Cole Palmer", key="cap2_n")
-        p2_form = st.slider("Attack Form (xGI):", 0.0, 2.0, 0.9, key="cap2_f")
-        p2_target = st.selectbox("Opponent:", avail_targets, index=min(1, len(avail_targets)-1), key="cap2_t")
-    with col_c3:
-        p3_name = st.text_input("Player Name 3:", "Erling Haaland", key="cap3_n")
-        p3_form = st.slider("Attack Form (xGI):", 0.0, 2.0, 1.2, key="cap3_f")
-        p3_target = st.selectbox("Opponent:", avail_targets, key="cap3_t")
+        winner = team_b_name
 
-    if st.button("🧮 Calculate Best Captaincy Pick"):
-        def calc_score(form, target_key):
-            t_data = st.session_state.database.get(target_key, {})
-            try: xgc = float(t_data.get("xGConceded", "1.5"))
-            except: xgc = 1.5
-            return round(min((form * 4.5) + (xgc * 3.0), 10.0), 1)
+    if best_target:
 
-        res = [(p1_name, calc_score(p1_form, p1_target), p1_target),
-               (p2_name, calc_score(p2_form, p2_target), p2_target),
-               (p3_name, calc_score(p3_form, p3_target), p3_target)]
-        res.sort(key=lambda x: x[1], reverse=True)
-        st.success(f"🏆 **Recommended Captain:** **{res[0][0]}** with Rating **({res[0][1]}/10)** vs {res[0][2]}")
+        render_verdict(
+            "H2H",
+            f"{winner} has the stronger current profile",
+            (
+                f"Best attacking target from {team_a_name}: "
+                f"{best_target['name']} "
+                f"({best_target['radar_score']:.1f}/100). "
+                f"Fixture and underlying player profile are "
+                f"used together rather than relying on one metric."
+            ),
+            "Medium",
+            "Medium",
+        )
 
-# TAB 5: Social Media Generator
-with tab5:
-    st.subheader("📱 Social Media Thread & Summary Generator")
-    teams_list = [k for k in st.session_state.database.keys() if k != "TOP4_TARGETS"]
-    if teams_list:
-        selected_pub_team = st.selectbox("Select Team for Summary:", teams_list)
-        pdata = st.session_state.database[selected_pub_team]
-        tweet_text = f"""🎯 FPL Radar | Defensive Vulnerability Analysis: {pdata.get('title', selected_pub_team)} ⚽
 
-📊 Defensive Stats:
-• xG Conceded: {pdata.get('xGConceded', 'N/A')}
-• Big Chances Conceded: {pdata.get('bigChancesConceded', 'N/A')}
+# ============================================================
+# DIFFERENTIAL SCOUT
+# ============================================================
 
-💡 Fantasy Recommendations:
-{pdata.get('targetAdvice', '')}
+def differential_scout(data):
 
-#FPL #FPLCommunity #FPL_Radar"""
-        st.text_area("📋 Copy-Paste Ready Post:", tweet_text, height=200)
+    st.title(
+        "💎 Differential Scout"
+    )
+
+    ownership_limit = st.slider(
+        "Maximum ownership %",
+        1.0,
+        30.0,
+        10.0,
+        0.5,
+    )
+
+    min_price = st.slider(
+        "Minimum price",
+        3.5,
+        15.0,
+        5.0,
+        0.1,
+    )
+
+    positions = st.multiselect(
+        "Positions",
+        ["GKP", "DEF", "MID", "FWD"],
+        default=["MID", "FWD"],
+    )
+
+    players = add_scores(
+        data["players"],
+        data
+    )
+
+    pool = [
+        p for p in players
+        if p["status"] == "a"
+        and p["selected_by"] <= ownership_limit
+        and p["price"] >= min_price
+        and p["position"] in positions
+        and p["minutes"] > 100
+    ]
+
+    pool = sorted(
+        pool,
+        key=lambda x: x["differential_score"],
+        reverse=True,
+    )
+
+    if not pool:
+
+        st.info(
+            "No players match the selected filters."
+        )
+        return
+
+    rows = []
+
+    for p in pool[:30]:
+
+        rows.append(
+            {
+                "Player": p["name"],
+                "Team": p["team_short"],
+                "Pos": p["position"],
+                "Price": money(p["price"]),
+                "Own %": round(
+                    p["selected_by"],
+                    1,
+                ),
+                "Form": p["form"],
+                "xGI/90": round(
+                    p["expected_goal_involvements_per_90"],
+                    2,
+                ),
+                "Minutes Score": round(
+                    p["minutes_score"],
+                    1,
+                ),
+                "Radar": round(
+                    p["differential_score"],
+                    1,
+                ),
+                "Risk": (
+                    "Low"
+                    if p["risk_score"] < 25
+                    else
+                    "Medium"
+                    if p["risk_score"] < 55
+                    else
+                    "High"
+                ),
+            }
+        )
+
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    best = pool[0]
+
+    v = verdict_for_player(
+        best,
+        data,
+        "differential",
+    )
+
+    render_verdict(
+        "Differential",
+        f"{best['name']} — {v['score']:.1f}/100",
+        (
+            f"Ownership {best['selected_by']:.1f}% · "
+            f"{v['reason']}"
+        ),
+        v["confidence"],
+        v["risk"],
+    )
+
+
+# ============================================================
+# CAPTAINCY PLANNER
+# ============================================================
+
+def captaincy(data):
+
+    st.title(
+        "👑 Captaincy Planner"
+    )
+
+    players = add_scores(
+        data["players"],
+        data
+    )
+
+    eligible = [
+        p for p in players
+        if p["status"] == "a"
+        and p["position"] in ["MID", "FWD"]
+        and p["minutes"] > 250
+    ]
+
+    ranked = sorted(
+        eligible,
+        key=lambda x: x["captain_score"],
+        reverse=True,
+    )[:20]
+
+    rows = []
+
+    for i, p in enumerate(
+        ranked,
+        1,
+    ):
+
+        v = verdict_for_player(
+            p,
+            data,
+            "captain",
+        )
+
+        fixtures = team_fixture_rows(
+            data,
+            p["team_id"],
+            horizon=3,
+        )
+
+        fixture_text = " · ".join(
+            [
+                (
+                    f"GW{x['gw']} "
+                    f"{x['opponent']} "
+                    f"{'H' if x['home'] else 'A'}"
+                )
+                for x in fixtures[:3]
+            ]
+        )
+
+        rows.append(
+            {
+                "Rank": i,
+                "Player": p["name"],
+                "Team": p["team_short"],
+                "Fixture": fixture_text,
+                "Price": money(p["price"]),
+                "Form": p["form"],
+                "xGI/90": round(
+                    p["expected_goal_involvements_per_90"],
+                    2,
+                ),
+                "Minutes": round(
+                    p["minutes_score"],
+                    0,
+                ),
+                "Captain Score": round(
+                    p["captain_score"],
+                    1,
+                ),
+                "Confidence": v["confidence"],
+                "Risk": v["risk"],
+            }
+        )
+
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    if ranked:
+
+        top = ranked[0]
+
+        v = verdict_for_player(
+            top,
+            data,
+            "captain",
+        )
+
+        render_verdict(
+            "Captain",
+            f"{top['name']} — {top['captain_score']:.1f}/100",
+            (
+                f"{top['team_short']} · "
+                f"Form {top['form']} · "
+                f"xGI/90 "
+                f"{top['expected_goal_involvements_per_90']:.2f}. "
+                f"{v['reason']}."
+            ),
+            v["confidence"],
+            v["risk"],
+        )
+
+
+# ============================================================
+# TRANSFER PLANNER
+# ============================================================
+
+def transfer_planner(data):
+
+    st.title(
+        "🔄 Transfer Planner"
+    )
+
+    st.info(
+        "أدخل لاعبي فريقك الحالي يدويًا. "
+        "بعدها سيقارن Radar بين خيارات OUT و IN."
+    )
+
+    players = add_scores(
+        data["players"],
+        data
+    )
+
+    player_map = {
+        f"{p['name']} — {p['team_short']} — £{p['price']:.1f}m":
+        p["id"]
+        for p in players
+        if p["status"] == "a"
+    }
+
+    selected_labels = st.multiselect(
+        "Your current squad",
+        list(player_map.keys()),
+        max_selections=15,
+    )
+
+    free_transfers = st.number_input(
+        "Free Transfers",
+        min_value=1,
+        max_value=5,
+        value=1,
+    )
+
+    bank = st.number_input(
+        "Money in Bank (£m)",
+        min_value=0.0,
+        max_value=20.0,
+        value=0.0,
+        step=0.1,
+    )
+
+    if not selected_labels:
+
+        st.warning(
+            "Select your current squad first."
+        )
+        return
+
+    current_ids = {
+        player_map[x]
+        for x in selected_labels
+    }
+
+    current = [
+        p for p in players
+        if p["id"] in current_ids
+    ]
+
+    st.subheader(
+        "🔻 Suggested OUT"
+    )
+
+    out_candidates = sorted(
+        current,
+        key=lambda x: x["radar_score"]
+    )
+
+    out_rows = []
+
+    for p in out_candidates:
+
+        out_rows.append(
+            {
+                "Player": p["name"],
+                "Team": p["team_short"],
+                "Price": money(p["price"]),
+                "Radar": round(
+                    p["radar_score"],
+                    1,
+                ),
+                "Risk": (
+                    "Low"
+                    if p["risk_score"] < 25
+                    else
+                    "Medium"
+                    if p["risk_score"] < 55
+                    else
+                    "High"
+                ),
+                "Reason": (
+                    "Low current Radar score"
+                    if p["radar_score"] < 55
+                    else
+                    "Consider only if upgrading structure"
+                ),
+            }
+        )
+
+    st.dataframe(
+        pd.DataFrame(out_rows),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.subheader(
+        "🔺 Suggested IN"
+    )
+
+    # Candidates
+    candidates = [
+        p for p in players
+        if p["status"] == "a"
+        and p["id"] not in current_ids
+    ]
+
+    suggestions = []
+
+    for out_player in out_candidates[:5]:
+
+        max_price = (
+            out_player["price"]
+            + bank
+        )
+
+        candidates_same_pos = [
+            p for p in candidates
+            if p["position"]
+            == out_player["position"]
+            and p["price"] <= max_price
+        ]
+
+        candidates_same_pos.sort(
+            key=lambda x: x["radar_score"],
+            reverse=True,
+        )
+
+        for candidate in candidates_same_pos[:3]:
+
+            improvement = (
+                candidate["radar_score"]
+                - out_player["radar_score"]
+            )
+
+            if improvement > 0:
+
+                suggestions.append(
+                    {
+                        "OUT": out_player["name"],
+                        "IN": candidate["name"],
+                        "Position": candidate["position"],
+                        "Price": money(candidate["price"]),
+                        "Radar Gain": round(
+                            improvement,
+                            1,
+                        ),
+                        "IN Radar": round(
+                            candidate["radar_score"],
+                            1,
+                        ),
+                        "Risk": (
+                            "Low"
+                            if candidate["risk_score"] < 25
+                            else
+                            "Medium"
+                            if candidate["risk_score"] < 55
+                            else
+                            "High"
+                        ),
+                    }
+                )
+
+    suggestions.sort(
+        key=lambda x: x["Radar Gain"],
+        reverse=True,
+    )
+
+    st.dataframe(
+        pd.DataFrame(
+            suggestions[:20]
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    if suggestions:
+
+        best = suggestions[0]
+
+        render_verdict(
+            "Transfer",
+            f"{best['OUT']} → {best['IN']}",
+            (
+                f"Estimated Radar improvement: "
+                f"+{best['Radar Gain']:.1f}. "
+                f"This is a model-based recommendation, "
+                f"not a guarantee of future points."
+            ),
+            "Medium",
+            best["Risk"],
+        )
+
+
+# ============================================================
+# TEAM OPTIMIZER
+# ============================================================
+
+def team_optimizer(data):
+
+    st.title(
+        "🧠 Team Optimizer"
+    )
+
+    budget = st.number_input(
+        "Total squad budget (£m)",
+        min_value=50.0,
+        max_value=120.0,
+        value=100.0,
+        step=0.1,
+    )
+
+    strategy = st.selectbox(
+        "Strategy",
+        [
+            "Safe",
+            "Balanced",
+            "Differential",
+        ],
+    )
+
+    if strategy == "Safe":
+        ownership_weight = 0.20
+
+    elif strategy == "Balanced":
+        ownership_weight = 0.10
+
+    else:
+        ownership_weight = -0.05
+
+    players = add_scores(
+        data["players"],
+        data
+    )
+
+    # Strategy score
+    for p in players:
+
+        ownership_component = clamp(
+            p["selected_by"] * 4,
+            0,
+            100,
+        )
+
+        p["optimizer_score"] = (
+            p["radar_score"] * 0.80
+            + ownership_component
+            * ownership_weight
+        )
+
+    positions = {
+        "GKP": 2,
+        "DEF": 5,
+        "MID": 5,
+        "FWD": 3,
+    }
+
+    selected = []
+
+    # Simple but valid positional optimizer.
+    # It respects budget and max 3 players per team.
+    team_counts = {}
+
+    remaining_budget = budget
+
+    for position, max_count in positions.items():
+
+        pool = sorted(
+            [
+                p for p in players
+                if p["position"] == position
+                and p["status"] == "a"
+                and p["minutes"] > 100
+            ],
+            key=lambda x: x["optimizer_score"],
+            reverse=True,
+        )
+
+        count = 0
+
+        for p in pool:
+
+            if count >= max_count:
+                break
+
+            if (
+                remaining_budget
+                - p["price"]
+                < 0
+            ):
+                continue
+
+            team_count = team_counts.get(
+                p["team_id"],
+                0,
+            )
+
+            if team_count >= 3:
+                continue
+
+            selected.append(p)
+
+            remaining_budget -= p["price"]
+
+            team_counts[
+                p["team_id"]
+            ] = team_count + 1
+
+            count += 1
+
+    # If budget constraints caused incomplete squad,
+    # tell user instead of pretending.
+    st.subheader(
+        "Recommended Squad"
+    )
+
+    rows = []
+
+    for p in selected:
+
+        rows.append(
+            {
+                "Player": p["name"],
+                "Team": p["team_short"],
+                "Pos": p["position"],
+                "Price": money(p["price"]),
+                "Radar": round(
+                    p["optimizer_score"],
+                    1,
+                ),
+                "Ownership": pct(
+                    p["selected_by"]
+                ),
+            }
+        )
+
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    total_cost = sum(
+        p["price"]
+        for p in selected
+    )
+
+    st.metric(
+        "Squad Cost",
+        f"£{total_cost:.1f}m",
+        f"£{budget - total_cost:.1f}m remaining",
+    )
+
+    st.warning(
+        "Optimizer uses a transparent algorithmic "
+        "selection. Before a real GW deadline, "
+        "check injuries, predicted lineups and "
+        "official FPL news."
+    )
+
+
+# ============================================================
+# GEMINI
+# ============================================================
+
+def get_gemini_key():
+
+    # Streamlit secrets first
+    try:
+
+        if "GEMINI_API_KEY" in st.secrets:
+            return st.secrets[
+                "GEMINI_API_KEY"
+            ]
+
+    except Exception:
+        pass
+
+    # Environment variable
+    key = os.getenv(
+        "GEMINI_API_KEY"
+    )
+
+    if key:
+        return key
+
+    return st.session_state.get(
+        "gemini_key",
+        ""
+    )
+
+
+def ai_answer(question, data):
+
+    if not GEMINI_AVAILABLE:
+
+        return (
+            "Gemini SDK is not installed. "
+            "Run: pip install -U google-genai"
+        )
+
+    api_key = get_gemini_key()
+
+    if not api_key:
+
+        return (
+            "Gemini API key is missing. "
+            "Add GEMINI_API_KEY to Streamlit secrets "
+            "or enter it in the sidebar."
+        )
+
+    client = genai.Client(
+        api_key=api_key
+    )
+
+    players = add_scores(
+        data["players"],
+        data
+    )
+
+    top_players = sorted(
+        players,
+        key=lambda x: x["radar_score"],
+        reverse=True,
+    )[:40]
+
+    player_context = []
+
+    for p in top_players:
+
+        player_context.append(
+            {
+                "name": p["name"],
+                "team": p["team_short"],
+                "pos": p["position"],
+                "price": round(
+                    p["price"],
+                    1,
+                ),
+                "ownership": round(
+                    p["selected_by"],
+                    1,
+                ),
+                "form": round(
+                    p["form"],
+                    2,
+                ),
+                "xgi90": round(
+                    p[
+                        "expected_goal_involvements_per_90"
+                    ],
+                    2,
+                ),
+                "minutes_score": round(
+                    p["minutes_score"],
+                    1,
+                ),
+                "radar": round(
+                    p["radar_score"],
+                    1,
+                ),
+                "captain": round(
+                    p["captain_score"],
+                    1,
+                ),
+                "risk": round(
+                    p["risk_score"],
+                    1,
+                ),
+            }
+        )
+
+    team_context = []
+
+    for team in data["teams"].values():
+
+        fixtures = team_fixture_rows(
+            data,
+            team["id"],
+            horizon=5,
+        )
+
+        team_context.append(
+            {
+                "team": team["name"],
+                "short": team["short_name"],
+                "fixture_score": round(
+                    fixture_score(
+                        fixtures
+                    ),
+                    1,
+                ),
+                "fixtures": [
+                    {
+                        "gw": f["gw"],
+                        "opp": f["opponent"],
+                        "home": f["home"],
+                        "difficulty": f["difficulty"],
+                    }
+                    for f in fixtures
+                ],
+            }
+        )
+
+    context = {
+        "gameweek": get_current_gw(
+            data["events"]
+        ),
+        "top_players": player_context,
+        "teams": team_context,
+    }
+
+    prompt = f"""
+You are FPL Radar AI.
+
+You are an expert Fantasy Premier League analyst.
+
+IMPORTANT RULES:
+1. Use ONLY the supplied structured data for numerical claims.
+2. Never invent prices, ownership, fixtures or statistics.
+3. If the supplied data does not contain something, say so.
+4. Distinguish between model score and actual FPL points.
+5. Give practical FPL advice.
+6. Be concise but explain WHY.
+7. Mention risk.
+8. Never claim that Radar Score guarantees points.
+
+USER QUESTION:
+{question}
+
+CURRENT DATA:
+{json.dumps(context, ensure_ascii=False)}
+
+Answer in clear English with:
+- Verdict
+- Why
+- Risk
+- Best alternative if relevant
+"""
+
+    try:
+
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.25,
+                max_output_tokens=900,
+            ),
+        )
+
+        return response.text
+
+    except Exception as e:
+
+        return (
+            f"Gemini error: {str(e)}"
+        )
+
+
+# ============================================================
+# ASK FPL RADAR
+# ============================================================
+
+def ask_radar(data):
+
+    st.title(
+        "🤖 Ask FPL Radar"
+    )
+
+    st.caption(
+        "Ask questions using the current FPL data engine."
+    )
+
+    if "chat_history" not in st.session_state:
+
+        st.session_state[
+            "chat_history"
+        ] = []
+
+    for msg in st.session_state[
+        "chat_history"
+    ]:
+
+        with st.chat_message(
+            msg["role"]
+        ):
+
+            st.markdown(
+                msg["content"]
+            )
+
+    question = st.chat_input(
+        "Example: Salah or Haaland captain?"
+    )
+
+    if question:
+
+        st.session_state[
+            "chat_history"
+        ].append(
+            {
+                "role": "user",
+                "content": question,
+            }
+        )
+
+        with st.chat_message("user"):
+
+            st.markdown(question)
+
+        with st.chat_message("assistant"):
+
+            with st.spinner(
+                "FPL Radar is analyzing..."
+            ):
+
+                answer = ai_answer(
+                    question,
+                    data,
+                )
+
+            st.markdown(answer)
+
+        st.session_state[
+            "chat_history"
+        ].append(
+            {
+                "role": "assistant",
+                "content": answer,
+            }
+        )
+
+
+# ============================================================
+# SETTINGS / GEMINI KEY
+# ============================================================
+
+def render_gemini_settings():
+
+    st.sidebar.divider()
+
+    st.sidebar.markdown(
+        "### 🤖 AI Settings"
+    )
+
+    key = st.sidebar.text_input(
+        "Gemini API Key",
+        type="password",
+        value=st.session_state.get(
+            "gemini_key",
+            ""
+        ),
+        help=(
+            "Optional if GEMINI_API_KEY "
+            "exists in Streamlit secrets."
+        ),
+    )
+
+    if key:
+
+        st.session_state[
+            "gemini_key"
+        ] = key
+
+
+# ============================================================
+# DATA HEALTH
+# ============================================================
+
+def data_health(data):
+
+    st.sidebar.divider()
+
+    st.sidebar.markdown(
+        "### 🩺 Data Health"
+    )
+
+    st.sidebar.success(
+        "FPL API: Connected"
+    )
+
+    st.sidebar.caption(
+        f"Teams: {len(data['teams'])}"
+    )
+
+    st.sidebar.caption(
+        f"Players: {len(data['players'])}"
+    )
+
+    st.sidebar.caption(
+        f"Fixtures: {len(data['fixtures'])}"
+    )
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+
+    data_raw, ok, error = (
+        load_data_with_status()
+    )
+
+    if not ok:
+
+        st.error(
+            "❌ Unable to load FPL data."
+        )
+
+        st.code(
+            str(error)
+        )
+
+        st.info(
+            "Check internet connection or FPL API availability."
+        )
+
+        # Still allow user to retry
+        if st.button(
+            "🔄 Retry"
+        ):
+
+            st.cache_data.clear()
+            st.rerun()
+
+        return
+
+    data = normalize_data(
+        data_raw
+    )
+
+    page = sidebar(
+        data
+    )
+
+    render_gemini_settings()
+
+    data_health(
+        data
+    )
+
+    # --------------------------------------------------------
+    # PAGE ROUTER
+    # --------------------------------------------------------
+
+    if page == "Dashboard":
+
+        dashboard(data)
+
+    elif page == "Defensive Radar":
+
+        defensive_radar(data)
+
+    elif page == "Head-to-Head":
+
+        h2h(data)
+
+    elif page == "Differential Scout":
+
+        differential_scout(data)
+
+    elif page == "Captaincy Planner":
+
+        captaincy(data)
+
+    elif page == "Transfer Planner":
+
+        transfer_planner(data)
+
+    elif page == "Team Optimizer":
+
+        team_optimizer(data)
+
+    elif page == "Ask FPL Radar":
+
+        ask_radar(data)
+
+
+# ============================================================
+# RUN
+# ============================================================
+
+if __name__ == "__main__":
+    main()
