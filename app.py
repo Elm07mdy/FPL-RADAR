@@ -38,7 +38,7 @@ except Exception:
 # ============================================================
 
 APP_NAME = "FPL HOME"
-APP_VERSION = "5.1"
+APP_VERSION = "5.2"
 
 FPL_BASE = "https://fantasy.premierleague.com/api"
 BOOTSTRAP_URL = f"{FPL_BASE}/bootstrap-static/"
@@ -66,7 +66,7 @@ st.set_page_config(
 # ============================================================
 
 st.markdown(
-    """ <style> :root { --bg: #050a0f; --surface: #0d1821; --surface2: #12222e; --surface3: #172b39; --border: #2a4352; --text: #f8fbfd; --soft: #d9e4ea; --muted: #9eb1bd; --green: #31e6a5; --blue: #62adff; --yellow: #ffd45c; --orange: #ff9c3a; --red: #ff5d69; } html, body, [class*="css"] { font-family: Inter, Arial, sans-serif; } .stApp { background: radial-gradient(circle at 0% 0%, rgba(49,230,165,.10), transparent 28%), radial-gradient(circle at 100% 0%, rgba(98,173,255,.10), transparent 30%), linear-gradient(180deg, #08131b 0%, var(--bg) 70%); color: var(--text); } .block-container { max-width: 1450px; padding: .65rem .75rem 4rem .75rem; } section[data-testid="stSidebar"] { display: none; } h1, h2, h3, h4, p, label { color: var(--text); } h1, h2, h3 { font-weight: 900 !important; } .topbar { background: rgba(7,18,26,.96); border: 1px solid var(--border); border-radius: 18px; padding: 14px 16px; margin: 0 0 16px 0; } .brand { color: #ffffff; font-size: 25px; font-weight: 950; letter-spacing: -.8px; } .brand span { color: var(--green); } .subtle { color: var(--muted) !important; font-size: 12px; } .card { background: linear-gradient(145deg, rgba(18,34,46,.98), rgba(9,19,27,.98)); border: 1px solid var(--border); border-radius: 18px; padding: 17px; margin-bottom: 14px; } .metric-card { background: linear-gradient(145deg, var(--surface2), var(--surface)); border: 1px solid var(--border); border-radius: 16px; padding: 15px; min-height: 100px; } .metric-label { color: var(--muted) !important; font-size: 10px; font-weight: 900; letter-spacing: 1px; } .metric-value { color: #ffffff !important; font-size: 26px; font-weight: 950; margin-top: 5px; } .metric-sub { color: var(--soft) !important; font-size: 11px; margin-top: 3px; } .section-title { color: #ffffff !important; font-size: 19px; font-weight: 950; margin: 14px 0 10px; } .verdict { border: 1px solid rgba(49,230,165,.36); border-radius: 18px; padding: 17px; background: linear-gradient(135deg, rgba(49,230,165,.13), rgba(8,20,28,.98)); } .verdict-kicker { color: var(--green) !important; font-size: 10px; font-weight: 950; letter-spacing: 1.2px; } .verdict-main { color: #ffffff !important; font-size: 23px; font-weight: 950; margin: 6px 0; } .badge { display: inline-block; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 900; margin-right: 5px; } .green { background: rgba(49,230,165,.14); color: #69efc0 !important; border: 1px solid rgba(49,230,165,.28); } .yellow { background: rgba(255,212,92,.14); color: #ffe28c !important; border: 1px solid rgba(255,212,92,.28); } .orange { background: rgba(255,156,58,.14); color: #ffb46e !important; border: 1px solid rgba(255,156,58,.28); } .red { background: rgba(255,93,105,.14); color: #ff969e !important; border: 1px solid rgba(255,93,105,.28); } .blue { background: rgba(98,173,255,.14); color: #a0ceff !important; border: 1px solid rgba(98,173,255,.28); } .player-card, .zone-card { background: linear-gradient(145deg, var(--surface2), var(--surface)); border: 1px solid var(--border); border-radius: 15px; padding: 14px; margin-bottom: 9px; } .disclaimer { color: var(--muted) !important; font-size: 11px; line-height: 1.6; } .stButton > button { width: 100%; min-height: 42px; border-radius: 11px; border: 1px solid #345465; background: linear-gradient(135deg, #173245, #102430); color: #ffffff !important; font-weight: 850; } .stButton > button:hover { border-color: var(--green); background: linear-gradient(135deg, #194635, #102d24); color: #ffffff !important; } div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, textarea, input { background-color: #101f2a !important; color: #ffffff !important; border-color: #34505f !important; } div[data-baseweb="select"] span { color: #ffffff !important; } div[role="radiogroup"] { gap: 5px; flex-wrap: wrap; } div[role="radiogroup"] label { background: #0d1b25; border: 1px solid #2a4352; border-radius: 10px; padding: 5px 9px; color: #f0f6f9 !important; } div[data-testid="stDataFrame"] { border: 1px solid var(--border); border-radius: 13px; overflow: hidden; } section[data-testid="stFileUploaderDropzone"] { background: #0d1b25 !important; border: 1px dashed #3c5b6c !important; border-radius: 15px !important; } section[data-testid="stFileUploaderDropzone"] * { color: #edf5f8 !important; } .admin-header { background: linear-gradient(135deg, rgba(98,173,255,.13), rgba(49,230,165,.09)); border: 1px solid rgba(98,173,255,.30); border-radius: 18px; padding: 18px; margin-bottom: 15px; } .admin-title { color: #ffffff; font-size: 24px; font-weight: 950; } .admin-subtitle { color: #afc1cc; font-size: 12px; margin-top: 5px; } .pitch-legend { display: flex; gap: 12px; flex-wrap: wrap; margin: 5px 0 12px; } .pitch-legend-item { color: #dce7ed; font-size: 11px; font-weight: 800; } .pitch-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; } .dot-red { background: #ff3d4d; } .dot-orange { background: #ff9d2e; } .dot-yellow { background: #ffd83d; } @media (max-width: 768px) { .block-container { padding-left: .55rem; padding-right: .55rem; } .brand { font-size: 20px; } .metric-card { min-height: 82px; } .metric-value { font-size: 21px; } .verdict-main { font-size: 20px; } h1 { font-size: 27px !important; } h2 { font-size: 22px !important; } h3 { font-size: 18px !important; } div[role="radiogroup"] { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 5px; } div[role="radiogroup"] label { white-space: nowrap; } } </style> """,
+    """ <style> :root { --bg: #24382f; --bg2: #2b4338; --surface: #344d40; --surface2: #3d5849; --surface3: #476353; --border: #5d7567; --text: #f5f1e6; --soft: #dfe4d8; --muted: #b9c5b8; --green: #9ed36a; --green2: #6fbf8a; --blue: #7fb7c9; --yellow: #e8c86b; --orange: #e2a15c; --red: #dc7777; --gold: #d9b45c; } html, body, [class*="css"] { font-family: Inter, Arial, sans-serif; } .stApp { background: radial-gradient(circle at 15% 0%, rgba(158,211,106,.12), transparent 32%), radial-gradient(circle at 100% 15%, rgba(127,183,201,.10), transparent 30%), linear-gradient(135deg, var(--bg2) 0%, var(--bg) 58%, #20342c 100%); color: var(--text); } .block-container { max-width: 1500px; padding: .65rem .75rem 4rem .75rem; } section[data-testid="stSidebar"] { display: none; } h1, h2, h3, h4, p, label { color: var(--text); } h1,h2,h3 { font-weight:900 !important; } .nav-rail { background: rgba(38,59,49,.94); border:1px solid rgba(154,181,160,.25); border-radius:20px; padding:10px 7px; position:sticky; top:10px; box-shadow:0 12px 30px rgba(16,30,24,.18); } .rail-brand { text-align:center; font-size:24px; padding:5px 0 11px; color:var(--green); } .rail-divider { height:1px; background:rgba(210,225,213,.14); margin:2px 5px 9px; } .rail-caption { text-align:center; color:var(--muted); font-size:9px; margin:5px 0 2px; font-weight:800; } .page-header { background:linear-gradient(135deg, rgba(67,91,76,.92), rgba(50,72,61,.92)); border:1px solid rgba(180,202,181,.24); border-radius:20px; padding:15px 18px; margin:0 0 15px 0; box-shadow:0 10px 25px rgba(20,35,28,.10); } .page-header-title { color:#fbf7ea !important; font-size:25px; font-weight:950; letter-spacing:-.4px; } .page-header-subtitle { color:var(--muted) !important; font-size:12px; margin-top:3px; } .topbar { background:rgba(52,77,64,.94); border:1px solid rgba(180,202,181,.24); border-radius:18px; padding:14px 16px; margin:0 0 16px 0; } .brand { color:#fbf7ea; font-size:25px; font-weight:950; letter-spacing:-.8px; } .brand span { color:var(--green); } .subtle { color:var(--muted) !important; font-size:12px; } .card,.player-card,.zone-card,.metric-card { background:linear-gradient(145deg, rgba(63,88,73,.98), rgba(50,73,61,.98)); border:1px solid rgba(181,204,183,.20); border-radius:17px; padding:16px; margin-bottom:12px; box-shadow:0 7px 20px rgba(19,33,27,.10); } .metric-card { min-height:100px; } .metric-label { color:#c1d0c0 !important; font-size:10px; font-weight:900; letter-spacing:1px; } .metric-value { color:#fffaf0 !important; font-size:26px; font-weight:950; margin-top:5px; } .metric-sub { color:var(--soft) !important; font-size:11px; margin-top:3px; } .section-title { color:#fffaf0 !important; font-size:19px; font-weight:950; margin:14px 0 10px; } .verdict { border:1px solid rgba(158,211,106,.36); border-radius:18px; padding:17px; background:linear-gradient(135deg, rgba(130,178,88,.16), rgba(51,75,62,.98)); } .verdict-kicker { color:var(--green) !important; font-size:10px; font-weight:950; letter-spacing:1.2px; } .verdict-main { color:#fffaf0 !important; font-size:23px; font-weight:950; margin:6px 0; } .badge { display:inline-block; border-radius:999px; padding:5px 9px; font-size:10px; font-weight:900; margin-right:5px; } .green { background:rgba(158,211,106,.14); color:#c4ed98 !important; border:1px solid rgba(158,211,106,.28); } .yellow { background:rgba(232,200,107,.14); color:#f4dd91 !important; border:1px solid rgba(232,200,107,.28); } .orange { background:rgba(226,161,92,.14); color:#f1bd83 !important; border:1px solid rgba(226,161,92,.28); } .red { background:rgba(220,119,119,.14); color:#f0a0a0 !important; border:1px solid rgba(220,119,119,.28); } .blue { background:rgba(127,183,201,.14); color:#a8d2df !important; border:1px solid rgba(127,183,201,.28); } .disclaimer { color:var(--muted) !important; font-size:11px; line-height:1.6; } .stButton > button { width:100%; min-height:42px; border-radius:11px; border:1px solid rgba(184,208,187,.28); background:linear-gradient(135deg,#466353,#3b5648); color:#fffaf0 !important; font-weight:850; } .stButton > button:hover { border-color:var(--green); background:linear-gradient(135deg,#557660,#456452); } .nav-rail .stButton > button { min-height:45px; height:45px; padding:0; font-size:21px; border-radius:13px; border-color:transparent; background:transparent; box-shadow:none; margin-bottom:5px; } .nav-rail .stButton > button:hover { background:rgba(158,211,106,.12); border-color:rgba(158,211,106,.28); } .nav-active .stButton > button { background:rgba(158,211,106,.17) !important; border-color:rgba(158,211,106,.42) !important; } div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, textarea, input { background-color:#405a4b !important; color:#fffaf0 !important; border-color:#668071 !important; } div[data-baseweb="select"] span { color:#fffaf0 !important; } div[data-testid="stDataFrame"] { border:1px solid rgba(181,204,183,.20); border-radius:13px; overflow:hidden; } section[data-testid="stFileUploaderDropzone"] { background:#405a4b !important; border:1px dashed #779080 !important; border-radius:15px !important; } section[data-testid="stFileUploaderDropzone"] * { color:#edf2e8 !important; } .admin-header { background:linear-gradient(135deg,rgba(91,121,101,.55),rgba(62,92,75,.75)); border:1px solid rgba(168,195,171,.28); border-radius:18px; padding:18px; margin-bottom:15px; } .admin-title { color:#fffaf0; font-size:24px; font-weight:950; } .admin-subtitle { color:#c5d1c5; font-size:12px; margin-top:5px; } .pitch-legend { display:flex; gap:12px; flex-wrap:wrap; margin:5px 0 12px; } .pitch-legend-item { color:#dfe7dc; font-size:11px; font-weight:800; } .pitch-dot { display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:5px; } .dot-red{background:#dc7777}.dot-orange{background:#e2a15c}.dot-yellow{background:#e8c86b} @media (max-width:768px) { .block-container{padding-left:.4rem;padding-right:.4rem}.page-header-title{font-size:21px}.brand{font-size:20px}.metric-card{min-height:82px}.metric-value{font-size:21px}.verdict-main{font-size:20px}.nav-rail{padding:7px 4px;border-radius:15px}.nav-rail .stButton > button{min-height:40px;height:40px;font-size:18px} } </style> """,
     unsafe_allow_html=True,
 )
 
@@ -856,12 +856,9 @@ def home(data):
     )[:3]
 
     st.markdown(
-        f""" <div class="topbar"> <div class="brand">⚽ FPL <span>HOME</span></div> <div class="subtle">Decision Support · GW {gw}</div> </div> """,
+        f"""<div class="topbar"><div class="brand">⚽ FPL <span>HOME</span></div><div class="subtle">Decision Support · GW {gw}</div></div>""",
         unsafe_allow_html=True,
     )
-
-    st.title("🏠 Home")
-    st.caption("Focus on the decisions that matter most this Gameweek.")
 
     c1, c2, c3, c4 = st.columns(4)
 
@@ -992,8 +989,6 @@ def home(data):
 # ============================================================
 
 def global_search(data):
-    st.title("🔎 Search")
-
     query = st.text_input(
         "Search players or clubs",
         placeholder="e.g. Salah, Haaland, Liverpool...",
@@ -1057,8 +1052,6 @@ def global_search(data):
 # ============================================================
 
 def player_profile(data):
-    st.title("👤 Player Profile")
-
     players = add_scores(data["players"], data)
 
     labels = {
@@ -1204,12 +1197,6 @@ def player_profile(data):
 # ============================================================
 
 def defensive_radar(data):
-    st.title("🛡️ Defensive Radar")
-    st.caption(
-        "Football-pitch opportunity map. "
-        "Arrows move toward the selected team's goal."
-    )
-
     team_names = sorted(
         t["name"] for t in data["teams"].values()
     )
@@ -1281,10 +1268,8 @@ def defensive_radar(data):
 def fixtures_page(data):
     gw = selected_gameweek(data["events"])
 
-    st.title("🟢🟡🔴 Fixture Difficulty")
     st.caption(
-        f"Fixture analysis starting from GW {gw}. "
-        "Lower FPL fixture difficulty means a better fixture."
+        f"Fixture analysis starting from GW {gw}. Lower FPL fixture difficulty means a better fixture."
     )
 
     rows = []
@@ -1330,11 +1315,7 @@ def fixtures_page(data):
 # ============================================================
 
 def captaincy(data):
-    st.title("👑 Captaincy")
-    st.caption(
-        "Safe Pick + High Upside. "
-        "Scores are model signals, not projected points."
-    )
+    st.caption("Safe Pick + High Upside. Scores are model signals, not projected points.")
 
     players = add_scores(data["players"], data)
 
@@ -1420,197 +1401,10 @@ def captaincy(data):
 
 
 # ============================================================
-# TRANSFER PLANNER
-# ============================================================
-
-def transfer_planner(data):
-    st.title("🔄 Transfer Planner")
-    st.caption(
-        "Connect a public FPL Team ID or select your squad manually."
-    )
-
-    players = add_scores(data["players"], data)
-
-    team_id = st.number_input(
-        "FPL Team ID (optional)",
-        min_value=0,
-        value=int(st.session_state.get("fpl_team_id", 0)),
-        step=1,
-    )
-
-    if st.button("🔗 Load FPL Squad", use_container_width=True):
-        if team_id <= 0:
-            st.warning("Enter a valid FPL Team ID.")
-        else:
-            try:
-                gw = selected_gameweek(data["events"])
-                picks = load_team_picks(team_id, gw)
-                ids = {
-                    item["element"]
-                    for item in picks.get("picks", [])
-                }
-
-                if ids:
-                    st.session_state["fpl_team_id"] = int(team_id)
-                    st.session_state["transfer_current_ids"] = ids
-                    st.success(
-                        f"Loaded {len(ids)} players from GW {gw}."
-                    )
-                else:
-                    st.warning("No squad players were returned.")
-            except Exception as exc:
-                st.error(f"Could not load squad: {exc}")
-
-    current_ids = set(
-        st.session_state.get("transfer_current_ids", set())
-    )
-
-    labels = {
-        f"{p['name']} — {p['team_short']} — {money(p['price'])}": p["id"]
-        for p in players
-        if p["status"] == "a"
-    }
-
-    if not current_ids:
-        selected = st.multiselect(
-            "Your current squad",
-            list(labels.keys()),
-            max_selections=15,
-        )
-        current_ids = {labels[item] for item in selected}
-
-    free_transfers = st.number_input(
-        "Free Transfers", 1, 5, 1
-    )
-
-    bank = st.number_input(
-        "Money in Bank (£m)",
-        0.0,
-        20.0,
-        0.0,
-        0.1,
-    )
-
-    if not current_ids:
-        st.info("Connect your FPL Team ID or select your squad.")
-        return
-
-    current = [
-        p for p in players
-        if p["id"] in current_ids
-    ]
-
-    out_candidates = sorted(
-        current,
-        key=lambda p: p["radar_score"],
-    )
-
-    st.subheader("🔻 Suggested OUT")
-
-    st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "Player": p["name"],
-                    "Team": p["team_short"],
-                    "Price": money(p["price"]),
-                    "Radar": round(p["radar_score"], 1),
-                    "Risk": (
-                        "Low" if p["risk_score"] < 25
-                        else "Medium" if p["risk_score"] < 55
-                        else "High"
-                    ),
-                }
-                for p in out_candidates
-            ]
-        ),
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    candidates = [
-        p for p in players
-        if p["status"] == "a"
-        and p["id"] not in current_ids
-    ]
-
-    suggestions = []
-
-    for out_player in out_candidates[:5]:
-        max_price = out_player["price"] + bank
-
-        same_pos = [
-            p for p in candidates
-            if p["position"] == out_player["position"]
-            and p["price"] <= max_price
-        ]
-
-        for candidate in sorted(
-            same_pos,
-            key=lambda p: p["radar_score"],
-            reverse=True,
-        )[:5]:
-            gain = (
-                candidate["radar_score"]
-                - out_player["radar_score"]
-            )
-
-            if gain > 0:
-                suggestions.append({
-                    "OUT": out_player["name"],
-                    "IN": candidate["name"],
-                    "Position": candidate["position"],
-                    "Price": money(candidate["price"]),
-                    "Radar Gain": round(gain, 1),
-                    "IN Radar": round(candidate["radar_score"], 1),
-                    "Risk": (
-                        "Low" if candidate["risk_score"] < 25
-                        else "Medium" if candidate["risk_score"] < 55
-                        else "High"
-                    ),
-                })
-
-    suggestions.sort(
-        key=lambda x: x["Radar Gain"],
-        reverse=True,
-    )
-
-    st.subheader("🔺 Suggested IN")
-
-    if suggestions:
-        st.dataframe(
-            pd.DataFrame(suggestions[:20]),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-        best = suggestions[0]
-
-        render_verdict(
-            f"{best['OUT']} → {best['IN']}",
-            f"Model Radar gain +{best['Radar Gain']:.1f}. Decision support only.",
-            "Medium",
-            best["Risk"],
-            "TRANSFER IDEA",
-        )
-    else:
-        st.info(
-            "No positive-Radar upgrade found under the current constraints."
-        )
-
-    st.caption(
-        f"Free transfers selected: {free_transfers}. "
-        "The planner does not pretend to know future points."
-    )
-
-
-# ============================================================
 # TEAM OPTIMIZER
 # ============================================================
 
 def team_optimizer(data):
-    st.title("🧠 Team Optimizer")
-
     budget = st.number_input(
         "Total squad budget (£m)",
         50.0,
@@ -1828,11 +1622,7 @@ def ai_answer(question, data):
 
 
 def ask_fpl_home(data):
-    st.title("🤖 Ask FPL HOME")
-    st.caption(
-        "AI interpretation of FPL HOME structured data. "
-        "Gemini does not create the underlying FPL numbers."
-    )
+    st.caption("Gemini explains FPL HOME structured data; it does not create the underlying FPL numbers.")
 
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
@@ -1953,6 +1743,26 @@ def gemini_image_to_structured( uploaded_file, team_hint, gw_hint, ):
         return None, str(exc)
 
 
+
+
+def read_owner_table(uploaded_file):
+    """Read owner CSV/XLSX enrichment without replacing FPL API truth."""
+    name = (uploaded_file.name or "").lower()
+    if name.endswith(".csv"):
+        return pd.read_csv(uploaded_file)
+    if name.endswith(".xlsx") or name.endswith(".xls"):
+        return pd.read_excel(uploaded_file)
+    return None
+
+
+def find_column(df, aliases):
+    normalized = {str(c).strip().lower().replace(" ", "_"): c for c in df.columns}
+    for alias in aliases:
+        key = alias.strip().lower().replace(" ", "_")
+        if key in normalized:
+            return normalized[key]
+    return None
+
 # ============================================================
 # DATA CENTER
 # ============================================================
@@ -1975,57 +1785,73 @@ def data_center(data):
         unsafe_allow_html=True,
     )
 
-    st.subheader("📸 1. Upload Image")
+    st.subheader("📥 1. Upload Owner Enrichment")
+    st.caption("Accepted: defensive screenshots, Excel and CSV. Core FPL numbers remain sourced from the FPL API.")
 
-    team_names = sorted(
-        t["name"] for t in data["teams"].values()
-    )
-
-    team_name = st.selectbox(
-        "Team represented in the image",
-        team_names,
-    )
-
-    gw = st.number_input(
-        "Gameweek represented",
-        min_value=1,
-        max_value=50,
-        value=selected_gameweek(data["events"]),
-    )
+    team_names = sorted(t["name"] for t in data["teams"].values())
+    team_name = st.selectbox("Team represented in the source", team_names)
+    gw = st.number_input("Gameweek represented", min_value=1, max_value=50, value=selected_gameweek(data["events"]))
 
     uploaded = st.file_uploader(
-        "Upload defensive / tactical screenshot",
-        type=["png", "jpg", "jpeg", "webp"],
+        "Upload screenshot / Excel / CSV",
+        type=["png", "jpg", "jpeg", "webp", "csv", "xlsx", "xls"],
         accept_multiple_files=False,
+        key="owner_enrichment_upload",
     )
 
     if uploaded:
-        st.image(
-            uploaded,
-            caption="Uploaded source image",
-            use_container_width=True,
-        )
+        file_name = (uploaded.name or "").lower()
+        if file_name.endswith((".png", ".jpg", ".jpeg", ".webp")):
+            st.image(uploaded, caption="Uploaded source image", use_container_width=True)
+            if st.button("🤖 2. Analyze Image with Gemini", use_container_width=True):
+                with st.spinner("Gemini is extracting visible structured data..."):
+                    result, error = gemini_image_to_structured(uploaded, team_name, gw)
+                if error:
+                    st.error(error)
+                else:
+                    st.session_state["last_extracted_enrichment"] = result
+                    st.session_state["last_extracted_team"] = team_name
+                    st.session_state["last_extracted_gw"] = gw
+                    st.success("Image analyzed successfully. Review the extracted values below.")
+        else:
+            try:
+                owner_df = read_owner_table(uploaded)
+                if owner_df is None or owner_df.empty:
+                    st.warning("The uploaded table is empty.")
+                else:
+                    st.success(f"Loaded {len(owner_df)} owner-enrichment row(s).")
+                    st.dataframe(owner_df.head(50), use_container_width=True, hide_index=True)
 
-        if st.button(
-            "🤖 2. Analyze Image with Gemini",
-            use_container_width=True,
-        ):
-            with st.spinner(
-                "Gemini is extracting visible structured data..."
-            ):
-                result, error = gemini_image_to_structured(
-                    uploaded,
-                    team_name,
-                    gw,
-                )
+                    team_col = find_column(owner_df, ["team", "team_name", "club", "club_name"])
+                    left_col = find_column(owner_df, ["left", "left_vulnerability", "left_attack", "left_weakness"])
+                    center_col = find_column(owner_df, ["center", "centre", "center_vulnerability", "centre_vulnerability"])
+                    right_col = find_column(owner_df, ["right", "right_vulnerability", "right_attack", "right_weakness"])
+                    overall_col = find_column(owner_df, ["overall", "overall_vulnerability", "vulnerability"])
+                    strength_col = find_column(owner_df, ["defensive_strength", "defence_strength", "defense_strength"])
 
-            if error:
-                st.error(error)
-            else:
-                st.session_state["last_extracted_enrichment"] = result
-                st.session_state["last_extracted_team"] = team_name
-                st.session_state["last_extracted_gw"] = gw
-                st.success("Image analyzed successfully.")
+                    if not team_col:
+                        st.error("The table needs a Team / Team Name column before publishing.")
+                    else:
+                        st.caption("The app auto-detects common column names. Missing metrics are left unchanged rather than invented.")
+                        if st.button("✅ 2. Publish Table Enrichment", use_container_width=True):
+                            enrichment = get_enrichment()
+                            published = 0
+                            for _, row in owner_df.iterrows():
+                                raw_team = str(row.get(team_col, "")).strip()
+                                team = next((t for t in data["teams"].values() if t["name"].lower() == raw_team.lower() or t["short_name"].lower() == raw_team.lower()), None)
+                                if not team:
+                                    continue
+                                item = enrichment.get(str(team["id"]), {})
+                                for key, col in [("left", left_col), ("center", center_col), ("right", right_col), ("vulnerability", overall_col), ("defensive_strength", strength_col)]:
+                                    if col and pd.notna(row.get(col)):
+                                        item[key] = clamp(safe_float(row.get(col)), 0, 100)
+                                item.update({"source": f"Owner file: {uploaded.name}", "confidence": "Owner data", "notes": "Published from owner CSV/Excel.", "gw": int(gw), "updated": utc_now(), "owner_enrichment": True})
+                                enrichment[str(team["id"])] = item
+                                published += 1
+                            set_enrichment(enrichment)
+                            st.success(f"Published enrichment for {published} team(s).")
+            except Exception as exc:
+                st.error(f"Could not read the owner table: {exc}")
 
     extracted = st.session_state.get(
         "last_extracted_enrichment"
@@ -2195,122 +2021,61 @@ def data_center(data):
 
 
 # ============================================================
-# DATA HEALTH
-# ============================================================
-
-def data_health_page(data, api_ok=True):
-    st.title("🩺 Data Health")
-    st.caption(
-        "Transparent view of the data layers used by FPL HOME."
-    )
-
-    rows = [
-        {
-            "Layer": "FPL API",
-            "Role": "Core FPL numbers, players, teams and fixtures",
-            "Status": "Connected" if api_ok else "Error",
-            "API Key": "Not required",
-        },
-        {
-            "Layer": "Owner enrichment",
-            "Role": "Optional defensive/tactical image enrichment",
-            "Status": (
-                f"{len(get_enrichment())} team profiles"
-                if get_enrichment()
-                else "None"
-            ),
-            "API Key": "Owner only",
-        },
-        {
-            "Layer": "Gemini",
-            "Role": "Image extraction and AI explanation",
-            "Status": (
-                "Configured"
-                if get_secret("GEMINI_API_KEY")
-                else "Not configured"
-            ),
-            "API Key": "Streamlit Secrets",
-        },
-    ]
-
-    st.dataframe(
-        pd.DataFrame(rows),
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Teams", len(data["teams"]))
-    c2.metric("Players", len(data["players"]))
-    c3.metric("Fixtures", len(data["fixtures"]))
-
-    st.subheader("Rules")
-    st.markdown(
-        """ - FPL API is the source of core FPL numbers. - Owner uploads are enrichment only. - Gemini interprets uploaded images and explains data. - Normal users do not upload data. - Normal users do not enter API keys. - No historical prices are invented. """
-    )
-
-
-# ============================================================
 # NAVIGATION
 # ============================================================
 
 NAV_ITEMS = {
-    "🏠 Home": "Home",
-    "🔎 Search": "Search",
-    "👤 Player": "Player Profile",
-    "🛡️ Defensive Radar": "Defensive Radar",
-    "📅 Fixtures": "Fixtures",
-    "👑 Captaincy": "Captaincy",
-    "🔄 Transfers": "Transfer Planner",
-    "🧠 Optimizer": "Team Optimizer",
-    "🤖 Ask FPL HOME": "Ask FPL HOME",
-    "🗄️ Data Center": "Data Center",
-    "🩺 Data Health": "Data Health",
+    "🏠": "Home", "🔎": "Search", "👤": "Player Profile", "🛡️": "Defensive Radar",
+    "📅": "Fixtures", "👑": "Captaincy", "🧠": "Team Optimizer", "🤖": "Ask FPL HOME",
+    "🗄️": "Data Center",
+}
+
+PAGE_META = {
+    "Home": ("🏠", "Home", "Your Gameweek decision cockpit."),
+    "Search": ("🔎", "Search", "Find players and clubs in one place."),
+    "Player Profile": ("👤", "Player Profile", "Unified player decision profile: value, fixtures, risk and why."),
+    "Defensive Radar": ("🛡️", "Defensive Radar", "Find the defensive zones and fixtures most open to attack."),
+    "Fixtures": ("📅", "Fixtures", "Five-gameweek fixture run, difficulty and swing."),
+    "Captaincy": ("👑", "Captaincy", "Safe pick, model captain and high-upside differential."),
+    "Team Optimizer": ("🧠", "Team Optimizer", "Build a full 15-man squad around budget, risk and strategy."),
+    "Ask FPL HOME": ("🤖", "Ask FPL HOME", "Ask for an explanation using FPL HOME structured data."),
+    "Data Center": ("🗄️", "Data Center", "Owner-only enrichment: upload, analyze, review and publish."),
 }
 
 
-def top_navigation(data):
-    labels = list(NAV_ITEMS.keys())
-    current_page = st.session_state.get("page", "Home")
-
-    default_index = 0
-    for i, page in enumerate(NAV_ITEMS.values()):
-        if page == current_page:
-            default_index = i
-            break
-
-    selected_nav = st.radio(
-        "Navigation",
-        labels,
-        index=default_index,
-        horizontal=True,
-        label_visibility="collapsed",
+def page_header(page):
+    icon, name, description = PAGE_META.get(page, ("⚽", page, ""))
+    st.markdown(
+        f"""<div class=\"page-header\"><div class=\"page-header-title\">{icon} {name}</div><div class=\"page-header-subtitle\">{description}</div></div>""",
+        unsafe_allow_html=True,
     )
 
-    st.session_state["page"] = NAV_ITEMS[selected_nav]
 
-    gw_options = [
-        e["id"] for e in data["events"]
-        if e.get("id") is not None
-    ]
-
-    current_gw = selected_gameweek(data["events"])
-
-    if gw_options:
-        index = (
-            gw_options.index(current_gw)
-            if current_gw in gw_options
-            else 0
-        )
-
-        selected_gw = st.selectbox(
-            "Gameweek",
-            gw_options,
-            index=index,
-            key="global_gw_selector",
-        )
-
-        st.session_state["selected_gw"] = selected_gw
+def vertical_navigation(data):
+    current_page = st.session_state.get("page", "Home")
+    left, content = st.columns([0.075, 0.925], gap="small")
+    with left:
+        st.markdown('<div class="nav-rail"><div class="rail-brand">⚽</div><div class="rail-divider"></div>', unsafe_allow_html=True)
+        for icon, page in NAV_ITEMS.items():
+            if page == current_page:
+                st.markdown('<div class="nav-active">', unsafe_allow_html=True)
+            if st.button(icon, key=f"nav_{page}", help=page, use_container_width=True):
+                st.session_state["page"] = page
+                st.rerun()
+            if page == current_page:
+                st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="rail-divider"></div><div class="rail-caption">GW</div>', unsafe_allow_html=True)
+        gw_options = [e["id"] for e in data["events"] if e.get("id") is not None]
+        current_gw = selected_gameweek(data["events"])
+        if gw_options:
+            index = gw_options.index(current_gw) if current_gw in gw_options else 0
+            selected_gw = st.selectbox("GW", gw_options, index=index, key="rail_gw_selector", label_visibility="collapsed")
+            st.session_state["selected_gw"] = selected_gw
+        if st.button("↻", key="rail_refresh", help="Refresh FPL data", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+    return content
 
 
 # ============================================================
@@ -2319,49 +2084,27 @@ def top_navigation(data):
 
 def main():
     raw, api_ok, error = load_data_with_status()
-
     if not api_ok:
         st.error("Unable to load FPL API data.")
         st.code(str(error))
-
         if st.button("🔄 Retry"):
             st.cache_data.clear()
             st.rerun()
-
         return
-
     data = normalize_data(raw)
-
-    top_navigation(data)
-
-    if st.button("↻ Refresh", key="global_refresh"):
-        st.cache_data.clear()
-        st.rerun()
-
+    content = vertical_navigation(data)
     page = st.session_state.get("page", "Home")
-
-    if page == "Home":
-        home(data)
-    elif page == "Search":
-        global_search(data)
-    elif page == "Player Profile":
-        player_profile(data)
-    elif page == "Defensive Radar":
-        defensive_radar(data)
-    elif page == "Fixtures":
-        fixtures_page(data)
-    elif page == "Captaincy":
-        captaincy(data)
-    elif page == "Transfer Planner":
-        transfer_planner(data)
-    elif page == "Team Optimizer":
-        team_optimizer(data)
-    elif page == "Ask FPL HOME":
-        ask_fpl_home(data)
-    elif page == "Data Center":
-        data_center(data)
-    elif page == "Data Health":
-        data_health_page(data, api_ok=True)
+    with content:
+        page_header(page)
+        if page == "Home": home(data)
+        elif page == "Search": global_search(data)
+        elif page == "Player Profile": player_profile(data)
+        elif page == "Defensive Radar": defensive_radar(data)
+        elif page == "Fixtures": fixtures_page(data)
+        elif page == "Captaincy": captaincy(data)
+        elif page == "Team Optimizer": team_optimizer(data)
+        elif page == "Ask FPL HOME": ask_fpl_home(data)
+        elif page == "Data Center": data_center(data)
 
 
 if __name__ == "__main__":
