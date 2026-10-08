@@ -66,7 +66,7 @@ st.set_page_config(
 # ============================================================
 
 st.markdown(
-    """ <style> :root { --bg: #24382f; --bg2: #2b4338; --surface: #344d40; --surface2: #3d5849; --surface3: #476353; --border: #5d7567; --text: #f5f1e6; --soft: #dfe4d8; --muted: #b9c5b8; --green: #9ed36a; --green2: #6fbf8a; --blue: #7fb7c9; --yellow: #e8c86b; --orange: #e2a15c; --red: #dc7777; --gold: #d9b45c; } html, body, [class*="css"] { font-family: Inter, Arial, sans-serif; } .stApp { background: radial-gradient(circle at 15% 0%, rgba(158,211,106,.12), transparent 32%), radial-gradient(circle at 100% 15%, rgba(127,183,201,.10), transparent 30%), linear-gradient(135deg, var(--bg2) 0%, var(--bg) 58%, #20342c 100%); color: var(--text); } .block-container { max-width: 1500px; padding: .65rem .75rem 4rem .75rem; } section[data-testid="stSidebar"] { display: none; } h1, h2, h3, h4, p, label { color: var(--text); } h1,h2,h3 { font-weight:900 !important; } .nav-rail { background: rgba(38,59,49,.94); border:1px solid rgba(154,181,160,.25); border-radius:20px; padding:10px 7px; position:sticky; top:10px; box-shadow:0 12px 30px rgba(16,30,24,.18); } .rail-brand { text-align:center; font-size:24px; padding:5px 0 11px; color:var(--green); } .rail-divider { height:1px; background:rgba(210,225,213,.14); margin:2px 5px 9px; } .rail-caption { text-align:center; color:var(--muted); font-size:9px; margin:5px 0 2px; font-weight:800; } .page-header { background:linear-gradient(135deg, rgba(67,91,76,.92), rgba(50,72,61,.92)); border:1px solid rgba(180,202,181,.24); border-radius:20px; padding:15px 18px; margin:0 0 15px 0; box-shadow:0 10px 25px rgba(20,35,28,.10); } .page-header-title { color:#fbf7ea !important; font-size:25px; font-weight:950; letter-spacing:-.4px; } .page-header-subtitle { color:var(--muted) !important; font-size:12px; margin-top:3px; } .topbar { background:rgba(52,77,64,.94); border:1px solid rgba(180,202,181,.24); border-radius:18px; padding:14px 16px; margin:0 0 16px 0; } .brand { color:#fbf7ea; font-size:25px; font-weight:950; letter-spacing:-.8px; } .brand span { color:var(--green); } .subtle { color:var(--muted) !important; font-size:12px; } .card,.player-card,.zone-card,.metric-card { background:linear-gradient(145deg, rgba(63,88,73,.98), rgba(50,73,61,.98)); border:1px solid rgba(181,204,183,.20); border-radius:17px; padding:16px; margin-bottom:12px; box-shadow:0 7px 20px rgba(19,33,27,.10); } .metric-card { min-height:100px; } .metric-label { color:#c1d0c0 !important; font-size:10px; font-weight:900; letter-spacing:1px; } .metric-value { color:#fffaf0 !important; font-size:26px; font-weight:950; margin-top:5px; } .metric-sub { color:var(--soft) !important; font-size:11px; margin-top:3px; } .section-title { color:#fffaf0 !important; font-size:19px; font-weight:950; margin:14px 0 10px; } .verdict { border:1px solid rgba(158,211,106,.36); border-radius:18px; padding:17px; background:linear-gradient(135deg, rgba(130,178,88,.16), rgba(51,75,62,.98)); } .verdict-kicker { color:var(--green) !important; font-size:10px; font-weight:950; letter-spacing:1.2px; } .verdict-main { color:#fffaf0 !important; font-size:23px; font-weight:950; margin:6px 0; } .badge { display:inline-block; border-radius:999px; padding:5px 9px; font-size:10px; font-weight:900; margin-right:5px; } .green { background:rgba(158,211,106,.14); color:#c4ed98 !important; border:1px solid rgba(158,211,106,.28); } .yellow { background:rgba(232,200,107,.14); color:#f4dd91 !important; border:1px solid rgba(232,200,107,.28); } .orange { background:rgba(226,161,92,.14); color:#f1bd83 !important; border:1px solid rgba(226,161,92,.28); } .red { background:rgba(220,119,119,.14); color:#f0a0a0 !important; border:1px solid rgba(220,119,119,.28); } .blue { background:rgba(127,183,201,.14); color:#a8d2df !important; border:1px solid rgba(127,183,201,.28); } .disclaimer { color:var(--muted) !important; font-size:11px; line-height:1.6; } .stButton > button { width:100%; min-height:42px; border-radius:11px; border:1px solid rgba(184,208,187,.28); background:linear-gradient(135deg,#466353,#3b5648); color:#fffaf0 !important; font-weight:850; } .stButton > button:hover { border-color:var(--green); background:linear-gradient(135deg,#557660,#456452); } .nav-rail .stButton > button { min-height:45px; height:45px; padding:0; font-size:21px; border-radius:13px; border-color:transparent; background:transparent; box-shadow:none; margin-bottom:5px; } .nav-rail .stButton > button:hover { background:rgba(158,211,106,.12); border-color:rgba(158,211,106,.28); } .nav-active .stButton > button { background:rgba(158,211,106,.17) !important; border-color:rgba(158,211,106,.42) !important; } div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, textarea, input { background-color:#405a4b !important; color:#fffaf0 !important; border-color:#668071 !important; } div[data-baseweb="select"] span { color:#fffaf0 !important; } div[data-testid="stDataFrame"] { border:1px solid rgba(181,204,183,.20); border-radius:13px; overflow:hidden; } section[data-testid="stFileUploaderDropzone"] { background:#405a4b !important; border:1px dashed #779080 !important; border-radius:15px !important; } section[data-testid="stFileUploaderDropzone"] * { color:#edf2e8 !important; } .admin-header { background:linear-gradient(135deg,rgba(91,121,101,.55),rgba(62,92,75,.75)); border:1px solid rgba(168,195,171,.28); border-radius:18px; padding:18px; margin-bottom:15px; } .admin-title { color:#fffaf0; font-size:24px; font-weight:950; } .admin-subtitle { color:#c5d1c5; font-size:12px; margin-top:5px; } .pitch-legend { display:flex; gap:12px; flex-wrap:wrap; margin:5px 0 12px; } .pitch-legend-item { color:#dfe7dc; font-size:11px; font-weight:800; } .pitch-dot { display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:5px; } .dot-red{background:#dc7777}.dot-orange{background:#e2a15c}.dot-yellow{background:#e8c86b} @media (max-width:768px) { .block-container{padding-left:.4rem;padding-right:.4rem}.page-header-title{font-size:21px}.brand{font-size:20px}.metric-card{min-height:82px}.metric-value{font-size:21px}.verdict-main{font-size:20px}.nav-rail{padding:7px 4px;border-radius:15px}.nav-rail .stButton > button{min-height:40px;height:40px;font-size:18px} } </style> """,
+    """ <style> :root { --bg: #24382f; --bg2: #2b4338; --surface: #344d40; --surface2: #3d5849; --surface3: #476353; --border: #5d7567; --text: #f5f1e6; --soft: #dfe4d8; --muted: #b9c5b8; --green: #9ed36a; --green2: #6fbf8a; --blue: #7fb7c9; --yellow: #e8c86b; --orange: #e2a15c; --red: #dc7777; --gold: #d9b45c; --rail-width: 64px; } html, body, [class*="css"] { font-family: Inter, Arial, sans-serif; } .stApp { background: radial-gradient(circle at 15% 0%, rgba(158,211,106,.12), transparent 32%), radial-gradient(circle at 100% 15%, rgba(127,183,201,.10), transparent 30%), linear-gradient(135deg, var(--bg2) 0%, var(--bg) 58%, #20342c 100%); color: var(--text); } .block-container { max-width: none; width: calc(100% - var(--rail-width) - 18px); margin-left: calc(var(--rail-width) + 10px); margin-right: 8px; padding: .65rem .55rem 4rem .55rem; } section[data-testid="stSidebar"] { display: none; } h1, h2, h3, h4, p, label { color: var(--text); } h1,h2,h3 { font-weight:900 !important; } /* Fixed left navigation rail: stays vertical on desktop AND mobile. */ .nav-rail { position: fixed; z-index: 9999; left: 8px; top: 10px; bottom: 10px; width: var(--rail-width); box-sizing: border-box; display:flex; flex-direction:column; align-items:center; background: rgba(38,59,49,.97); border:1px solid rgba(154,181,160,.28); border-radius:20px; padding:10px 6px; box-shadow:0 12px 30px rgba(16,30,24,.22); overflow:hidden; } .rail-brand { text-align:center; font-size:24px; line-height:1; padding:4px 0 12px; color:var(--green); flex:0 0 auto; } .rail-divider { width:42px; height:1px; background:rgba(210,225,213,.16); margin:2px 0 8px; flex:0 0 auto; } .rail-items { width:100%; display:flex; flex-direction:column; align-items:center; gap:6px; flex:1 1 auto; } .rail-link { width:48px; height:48px; display:flex; align-items:center; justify-content:center; box-sizing:border-box; border-radius:14px; color:#eef3ea !important; text-decoration:none !important; font-size:22px; line-height:1; border:1px solid transparent; background:transparent; transition:all .15s ease; } .rail-link:hover { background:rgba(158,211,106,.12); border-color:rgba(158,211,106,.25); transform:translateY(-1px); } .rail-link.active { background:rgba(158,211,106,.19); border-color:rgba(158,211,106,.48); box-shadow:inset 0 0 0 1px rgba(158,211,106,.08); } .rail-link .rail-icon { display:block; transform:translateY(-1px); } .rail-bottom { flex:0 0 auto; color:var(--muted); font-size:9px; font-weight:800; text-align:center; padding-top:8px; } .page-header { background:linear-gradient(135deg, rgba(67,91,76,.92), rgba(50,72,61,.92)); border:1px solid rgba(180,202,181,.24); border-radius:20px; padding:15px 18px; margin:0 0 15px 0; box-shadow:0 10px 25px rgba(20,35,28,.10); } .page-header-title { color:#fbf7ea !important; font-size:25px; font-weight:950; letter-spacing:-.4px; } .page-header-subtitle { color:var(--muted) !important; font-size:12px; margin-top:3px; } .topbar { background:rgba(52,77,64,.94); border:1px solid rgba(180,202,181,.24); border-radius:18px; padding:14px 16px; margin:0 0 16px 0; } .brand { color:#fbf7ea; font-size:25px; font-weight:950; letter-spacing:-.8px; } .brand span { color:var(--green); } .subtle { color:var(--muted) !important; font-size:12px; } .card,.player-card,.zone-card,.metric-card { background:linear-gradient(145deg, rgba(63,88,73,.98), rgba(50,73,61,.98)); border:1px solid rgba(181,204,183,.20); border-radius:17px; padding:16px; margin-bottom:12px; box-shadow:0 7px 20px rgba(19,33,27,.10); } .metric-card { min-height:100px; } .metric-label { color:#c1d0c0 !important; font-size:10px; font-weight:900; letter-spacing:1px; } .metric-value { color:#fffaf0 !important; font-size:26px; font-weight:950; margin-top:5px; } .metric-sub { color:var(--soft) !important; font-size:11px; margin-top:3px; } .section-title { color:#fffaf0 !important; font-size:19px; font-weight:950; margin:14px 0 10px; } .verdict { border:1px solid rgba(158,211,106,.36); border-radius:18px; padding:17px; background:linear-gradient(135deg, rgba(130,178,88,.16), rgba(51,75,62,.98)); } .verdict-kicker { color:var(--green) !important; font-size:10px; font-weight:950; letter-spacing:1.2px; } .verdict-main { color:#fffaf0 !important; font-size:23px; font-weight:950; margin:6px 0; } .badge { display:inline-block; border-radius:999px; padding:5px 9px; font-size:10px; font-weight:900; margin-right:5px; } .green { background:rgba(158,211,106,.14); color:#c4ed98 !important; border:1px solid rgba(158,211,106,.28); } .yellow { background:rgba(232,200,107,.14); color:#f4dd91 !important; border:1px solid rgba(232,200,107,.28); } .orange { background:rgba(226,161,92,.14); color:#f1bd83 !important; border:1px solid rgba(226,161,92,.28); } .red { background:rgba(220,119,119,.14); color:#f0a0a0 !important; border:1px solid rgba(220,119,119,.28); } .blue { background:rgba(127,183,201,.14); color:#a8d2df !important; border:1px solid rgba(127,183,201,.28); } .disclaimer { color:var(--muted) !important; font-size:11px; line-height:1.6; } .stButton > button { width:100%; min-height:42px; border-radius:11px; border:1px solid rgba(184,208,187,.28); background:linear-gradient(135deg,#466353,#3b5648); color:#fffaf0 !important; font-weight:850; } .stButton > button:hover { border-color:var(--green); background:linear-gradient(135deg,#557660,#456452); } .nav-rail .stButton > button { min-height:45px; height:45px; padding:0; font-size:21px; border-radius:13px; border-color:transparent; background:transparent; box-shadow:none; margin-bottom:5px; } .nav-rail .stButton > button:hover { background:rgba(158,211,106,.12); border-color:rgba(158,211,106,.28); } .nav-active .stButton > button { background:rgba(158,211,106,.17) !important; border-color:rgba(158,211,106,.42) !important; } div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, textarea, input { background-color:#405a4b !important; color:#fffaf0 !important; border-color:#668071 !important; } div[data-baseweb="select"] span { color:#fffaf0 !important; } div[data-testid="stDataFrame"] { border:1px solid rgba(181,204,183,.20); border-radius:13px; overflow:hidden; } section[data-testid="stFileUploaderDropzone"] { background:#405a4b !important; border:1px dashed #779080 !important; border-radius:15px !important; } section[data-testid="stFileUploaderDropzone"] * { color:#edf2e8 !important; } .admin-header { background:linear-gradient(135deg,rgba(91,121,101,.55),rgba(62,92,75,.75)); border:1px solid rgba(168,195,171,.28); border-radius:18px; padding:18px; margin-bottom:15px; } .admin-title { color:#fffaf0; font-size:24px; font-weight:950; } .admin-subtitle { color:#c5d1c5; font-size:12px; margin-top:5px; } .pitch-legend { display:flex; gap:12px; flex-wrap:wrap; margin:5px 0 12px; } .pitch-legend-item { color:#dfe7dc; font-size:11px; font-weight:800; } .pitch-dot { display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:5px; } .dot-red{background:#dc7777}.dot-orange{background:#e2a15c}.dot-yellow{background:#e8c86b} @media (max-width:768px) { :root { --rail-width: 56px; } .block-container { width:calc(100% - var(--rail-width) - 10px); margin-left:calc(var(--rail-width) + 6px); margin-right:4px; padding-left:.25rem; padding-right:.25rem; } .nav-rail { left:5px; top:7px; bottom:7px; width:var(--rail-width); padding:8px 4px; border-radius:17px; } .rail-link { width:43px; height:43px; border-radius:12px; font-size:19px; } .rail-divider { width:38px; } .rail-brand { font-size:21px; padding-bottom:10px; } .page-header-title { font-size:21px; } .brand { font-size:20px; } .metric-card { min-height:82px; } .metric-value { font-size:21px; } .verdict-main { font-size:20px; } } </style> """,
     unsafe_allow_html=True,
 )
 
@@ -2052,30 +2052,64 @@ def page_header(page):
 
 
 def vertical_navigation(data):
+    """Render a true fixed left rail. Streamlit columns stack vertically on narrow/mobile screens, so the navigation intentionally uses plain HTML links instead of st.columns or Streamlit buttons. The query parameter controls the active page. """
+    valid_pages = set(NAV_ITEMS.values())
+    requested = None
+    try:
+        requested = st.query_params.get("page")
+    except Exception:
+        requested = None
+
+    if requested in valid_pages:
+        st.session_state["page"] = requested
+
     current_page = st.session_state.get("page", "Home")
-    left, content = st.columns([0.075, 0.925], gap="small")
-    with left:
-        st.markdown('<div class="nav-rail"><div class="rail-brand">⚽</div><div class="rail-divider"></div>', unsafe_allow_html=True)
-        for icon, page in NAV_ITEMS.items():
-            if page == current_page:
-                st.markdown('<div class="nav-active">', unsafe_allow_html=True)
-            if st.button(icon, key=f"nav_{page}", help=page, use_container_width=True):
-                st.session_state["page"] = page
-                st.rerun()
-            if page == current_page:
-                st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('<div class="rail-divider"></div><div class="rail-caption">GW</div>', unsafe_allow_html=True)
-        gw_options = [e["id"] for e in data["events"] if e.get("id") is not None]
-        current_gw = selected_gameweek(data["events"])
-        if gw_options:
-            index = gw_options.index(current_gw) if current_gw in gw_options else 0
-            selected_gw = st.selectbox("GW", gw_options, index=index, key="rail_gw_selector", label_visibility="collapsed")
-            st.session_state["selected_gw"] = selected_gw
-        if st.button("↻", key="rail_refresh", help="Refresh FPL data", use_container_width=True):
+
+    links = []
+    for icon, page in NAV_ITEMS.items():
+        active = " active" if page == current_page else ""
+        links.append(
+            f'<a class="rail-link{active}" href="?page={page.replace(" ", "%20")}" title="{page}" aria-label="{page}">'
+            f'<span class="rail-icon">{icon}</span></a>'
+        )
+
+    nav_html = (
+        '<nav class="nav-rail" aria-label="FPL HOME navigation">'
+        '<div class="rail-brand" title="FPL HOME">⚽</div>'
+        '<div class="rail-divider"></div>'
+        '<div class="rail-items">'
+        + "".join(links)
+        + '</div>'
+        '<div class="rail-divider"></div>'
+        '<div class="rail-bottom">FPL<br>HOME</div>'
+        '</nav>'
+    )
+    st.markdown(nav_html, unsafe_allow_html=True)
+
+
+def planning_toolbar(data):
+    """Compact controls kept in the content area, not inside the rail."""
+    gw_options = [e["id"] for e in data["events"] if e.get("id") is not None]
+    if not gw_options:
+        return
+
+    current_gw = selected_gameweek(data["events"])
+    index = gw_options.index(current_gw) if current_gw in gw_options else 0
+
+    c1, c2 = st.columns([4, 1], gap="small")
+    with c1:
+        selected_gw = st.selectbox(
+            "Gameweek",
+            gw_options,
+            index=index,
+            key="planning_gw_selector",
+        )
+        st.session_state["selected_gw"] = selected_gw
+    with c2:
+        st.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)
+        if st.button("↻ Refresh", key="content_refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-    return content
 
 
 # ============================================================
@@ -2092,19 +2126,19 @@ def main():
             st.rerun()
         return
     data = normalize_data(raw)
-    content = vertical_navigation(data)
+    vertical_navigation(data)
     page = st.session_state.get("page", "Home")
-    with content:
-        page_header(page)
-        if page == "Home": home(data)
-        elif page == "Search": global_search(data)
-        elif page == "Player Profile": player_profile(data)
-        elif page == "Defensive Radar": defensive_radar(data)
-        elif page == "Fixtures": fixtures_page(data)
-        elif page == "Captaincy": captaincy(data)
-        elif page == "Team Optimizer": team_optimizer(data)
-        elif page == "Ask FPL HOME": ask_fpl_home(data)
-        elif page == "Data Center": data_center(data)
+    planning_toolbar(data)
+    page_header(page)
+    if page == "Home": home(data)
+    elif page == "Search": global_search(data)
+    elif page == "Player Profile": player_profile(data)
+    elif page == "Defensive Radar": defensive_radar(data)
+    elif page == "Fixtures": fixtures_page(data)
+    elif page == "Captaincy": captaincy(data)
+    elif page == "Team Optimizer": team_optimizer(data)
+    elif page == "Ask FPL HOME": ask_fpl_home(data)
+    elif page == "Data Center": data_center(data)
 
 
 if __name__ == "__main__":
