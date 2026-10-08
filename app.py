@@ -1,21 +1,32 @@
-# ============================================================
-# FPL HOME
-# Your Fantasy Command Center
-# Single-file Streamlit Application
-# ============================================================
+
+# FPL HOME — Streamlit single-file application
+# Built from the previous FPL Radar codebase.
+#
+# Core data contract:
+# FPL API = source of core FPL numbers
+# Owner files = optional defensive-data enrichment
+# Gemini = image interpretation + explanation, never the source of core FPL numbers
+#
+# Suggested secrets:
+# GEMINI_API_KEY = "..."
+# OWNER_PASSWORD = "..."
+#
+# Run:
+# pip install streamlit requests pandas plotly openpyxl google-genai
+# streamlit run fpl_home.py
 
 import os
 import json
 import math
 import hashlib
 from datetime import datetime, timezone
+from typing import Dict, List, Any, Optional, Tuple
 
 import requests
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 
-# Gemini
 try:
     from google import genai
     from google.genai import types
@@ -37,24 +48,30 @@ FIXTURES_URL = f"{FPL_BASE}/fixtures/"
 REQUEST_TIMEOUT = 20
 CACHE_TTL = 300
 
-# Change through Streamlit Secrets if needed:
-# GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# Change this in Streamlit Secrets if desired.
+GEMINI_MODEL = "gemini-2.5-flash"
+
+POSITIONS = ["GKP", "DEF", "MID", "FWD"]
+
+
+# ============================================================
+# PAGE CONFIG
+# ============================================================
 
 st.set_page_config(
     page_title=APP_NAME,
-    page_icon="Рџй",
+    page_icon="⚽",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 
 # ============================================================
-# PREMIUM MOBILE-FIRST UI
+# MOBILE-FIRST UI
 # ============================================================
 
 st.markdown(
-    """ <style> :root{ --bg:#071018; --surface:#0d1822; --surface2:#111f2b; --line:#223544; --text:#f4f8fb; --muted:#91a3b2; --mint:#5ee6be; --mint2:#9af3d8; --warning:#f4c95d; --danger:#ff7d87; --blue:#7db7ff; } html, body, [class*="css"]{ font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; } .stApp{ background: radial-gradient(circle at 10% 0%, rgba(94,230,190,.09), transparent 28%), radial-gradient(circle at 90% 0%, rgba(125,183,255,.08), transparent 25%), var(--bg); color:var(--text); } .block-container{ max-width:1450px; padding:1rem .9rem 4rem; } h1,h2,h3,h4{ color:var(--text)!important; letter-spacing:-.02em; } p, label, .stMarkdown, .stCaption{ color:var(--text); } /* Brand */ .brand{ display:flex; align-items:center; gap:12px; margin:2px 0 16px; } .brand-mark{ width:46px;height:46px;border-radius:14px; display:flex;align-items:center;justify-content:center; background:linear-gradient(145deg,#132b36,#0b151e); border:1px solid #315162; font-size:25px; box-shadow:0 8px 30px rgba(0,0,0,.25); } .brand-name{font-size:25px;font-weight:900;line-height:1} .brand-tag{font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.11em} /* Top nav */ .nav-wrap{ display:flex; gap:7px; overflow-x:auto; padding:4px 2px 10px; margin-bottom:14px; scrollbar-width:none; } .nav-wrap::-webkit-scrollbar{display:none;} .nav-note{ font-size:11px;color:var(--muted);margin:0 0 8px 2px; } .nav-btn{ white-space:nowrap; border:1px solid var(--line); background:#0b151e; color:#b8c7d2; border-radius:12px; padding:9px 12px; font-weight:700; font-size:12px; } .nav-active{ color:#06120f; background:var(--mint); border-color:var(--mint); box-shadow:0 0 0 1px rgba(94,230,190,.15),0 8px 24px rgba(94,230,190,.12); } /* Page transition */ .page-fade{ animation:pageFade .22s ease-out; } @keyframes pageFade{ from{opacity:.45;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} } /* Sections / cards */ .section{ background:rgba(13,24,34,.86); border:1px solid var(--line); border-radius:18px; padding:18px; margin-bottom:15px; } .section-title{ font-size:12px; font-weight:900; letter-spacing:.1em; color:var(--mint2); text-transform:uppercase; margin-bottom:9px; } .hero{ background:linear-gradient(135deg,rgba(94,230,190,.12),rgba(17,31,43,.92)); border:1px solid #2b5b57; border-radius:20px; padding:22px; margin-bottom:16px; } .hero-kicker{font-size:12px;font-weight:900;letter-spacing:.1em;color:var(--mint)} .hero-main{font-size:28px;font-weight:900;margin:5px 0} .hero-sub{color:#aab9c5;font-size:14px;line-height:1.55} /* Metrics */ .metric{ background:#0d1822; border:1px solid var(--line); border-radius:15px; padding:14px; min-height:92px; } .metric-label{font-size:11px;color:var(--muted);font-weight:800;letter-spacing:.08em} .metric-value{font-size:25px;font-weight:900;margin-top:4px} .metric-sub{font-size:11px;color:#758895;margin-top:3px} /* Recommendation */ .rec{ background:#0a151e; border:1px solid #254252; border-radius:15px; padding:14px; margin:8px 0; } .rec-title{font-size:15px;font-weight:900} .rec-sub{font-size:12px;color:#91a3b2;margin-top:3px} /* Badges */ .badge{ display:inline-block; padding:4px 8px; border-radius:999px; font-size:10px; font-weight:900; margin-right:4px; } .good{background:rgba(94,230,190,.14);color:#72edc7} .warn{background:rgba(244,201,93,.14);color:#f6d778} .bad{background:rgba(255,125,135,.14);color:#ff9ca4} .info{background:rgba(125,183,255,.14);color:#9bc7ff} /* Search / tables */ div[data-testid="stDataFrame"]{ border:1px solid var(--line); border-radius:14px; overflow:hidden; } /* Progress */ .stProgress > div > div > div > div{ background:var(--mint); } /* Buttons */ .stButton > button{ border-radius:11px; border:1px solid #294454; background:#0d1b25; color:#f1f7fa; font-weight:800; } .stButton > button:hover{ border-color:var(--mint); color:var(--mint2); } /* Inputs */ input, textarea, [data-baseweb="select"] > div{ background:#0b151e!important; color:#f3f8fb!important; } /* Mobile */ @media(max-width:768px){ .block-container{padding:.65rem .65rem 3rem} .brand-name{font-size:22px} .hero-main{font-size:22px} .metric-value{font-size:20px} .section{padding:14px;border-radius:15px} h1{font-size:26px!important} h2{font-size:22px!important} h3{font-size:18px!important} } </style> """,
+    """ <style> :root { --bg: #071018; --surface: #0d1822; --surface-2: #101e2a; --border: #223545; --text: #f4f7fa; --muted: #a9b6c2; --green: #35d39a; --yellow: #f2c75c; --red: #ff7078; --blue: #68a9ff; } html, body, [class*="css"] { font-family: Inter, Arial, sans-serif; } .stApp { background: radial-gradient(circle at 5% 0%, rgba(53,211,154,.09), transparent 28%), radial-gradient(circle at 95% 10%, rgba(104,169,255,.08), transparent 30%), var(--bg); color: var(--text); } .block-container { max-width: 1380px; padding-top: .7rem; padding-bottom: 4rem; padding-left: .85rem; padding-right: .85rem; } section[data-testid="stSidebar"] { display: none; } .topbar { position: sticky; top: 0; z-index: 999; background: rgba(7,16,24,.92); backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); padding: 9px 0 10px 0; margin-bottom: 18px; } .brand { font-size: 22px; font-weight: 900; letter-spacing: -.5px; } .brand span { color: var(--green); } .subtle { color: var(--muted); font-size: 12px; } .card { background: linear-gradient(145deg, rgba(16,30,42,.96), rgba(10,20,29,.96)); border: 1px solid var(--border); border-radius: 17px; padding: 16px; margin-bottom: 13px; } .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 15px; padding: 14px; min-height: 94px; } .metric-label { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .7px; } .metric-value { font-size: 25px; font-weight: 900; margin-top: 5px; } .metric-sub { color: var(--muted); font-size: 11px; margin-top: 3px; } .verdict { border: 1px solid #2a624e; border-radius: 17px; padding: 17px; background: linear-gradient(135deg, rgba(53,211,154,.12), rgba(11,23,32,.96)); } .verdict-kicker { color: var(--green); font-size: 11px; font-weight: 900; letter-spacing: 1px; } .verdict-main { font-size: 24px; font-weight: 900; margin: 5px 0; } .badge { display: inline-block; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 900; margin-right: 5px; } .green { background: rgba(53,211,154,.14); color: #71e8bd; } .yellow { background: rgba(242,199,92,.14); color: #f4d476; } .red { background: rgba(255,112,120,.14); color: #ff9ba0; } .blue { background: rgba(104,169,255,.14); color: #94c3ff; } .section-title { font-size: 18px; font-weight: 900; margin: 8px 0 11px; } .player-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 13px; margin-bottom: 8px; } .zone-card { border: 1px solid var(--border); border-radius: 14px; padding: 13px; background: var(--surface); } .disclaimer { color: var(--muted); font-size: 11px; line-height: 1.5; } @media (max-width: 768px) { .block-container { padding-left: .65rem; padding-right: .65rem; } .brand { font-size: 19px; } .metric-card { min-height: 80px; } .metric-value { font-size: 21px; } .verdict-main { font-size: 20px; } h1 { font-size: 27px !important; } h2 { font-size: 22px !important; } h3 { font-size: 18px !important; } } </style> """,
     unsafe_allow_html=True,
 )
 
@@ -63,82 +80,128 @@ st.markdown(
 # HELPERS
 # ============================================================
 
-def safe_float(v, default=0.0):
+def safe_float(value, default=0.0):
     try:
-        return default if v is None else float(v)
+        if value is None or value == "":
+            return default
+        return float(value)
     except Exception:
         return default
 
 
-def safe_int(v, default=0):
+def safe_int(value, default=0):
     try:
-        return default if v is None else int(v)
+        if value is None or value == "":
+            return default
+        return int(value)
     except Exception:
         return default
 
 
-def clamp(v, lo, hi):
-    return max(lo, min(hi, v))
+def clamp(value, low, high):
+    return max(low, min(high, value))
 
 
-def money(v):
-    return f"┬Б{safe_float(v):.1f}m"
+def money(value):
+    return f"£{safe_float(value):.1f}m"
 
 
-def pct(v):
-    return f"{safe_float(v):.1f}%"
-
-
-def risk_label(score):
-    score = safe_float(score)
-    return "Low" if score < 25 else "Medium" if score < 55 else "High"
+def pct(value):
+    return f"{safe_float(value):.1f}%"
 
 
 def risk_badge(risk):
-    cls = "good" if risk == "Low" else "warn" if risk == "Medium" else "bad"
+    risk = str(risk)
+    cls = "green" if risk.lower() == "low" else "yellow" if risk.lower() == "medium" else "red"
     return f'<span class="badge {cls}">{risk}</span>'
 
 
-def confidence_label(score):
-    return "Very High" if score >= 82 else "High" if score >= 70 else "Medium" if score >= 58 else "Low"
+def difficulty_badge(difficulty):
+    d = safe_int(difficulty, 3)
+    if d <= 2:
+        return '<span class="badge green">EASY</span>'
+    if d == 3:
+        return '<span class="badge yellow">MIXED</span>'
+    return '<span class="badge red">HARD</span>'
 
 
-def conf_badge(conf):
-    return f'<span class="badge info">Confidence: {conf}</span>'
-
-
-def now_iso():
+def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def get_secret(name, default=""):
+    try:
+        value = st.secrets.get(name)
+        if value:
+            return str(value)
+    except Exception:
+        pass
+    return os.getenv(name, default)
+
+
 # ============================================================
-# FPL DATA ENGINE
+# FPL API ENGINE
 # ============================================================
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
-def fetch_json(url):
-    r = requests.get(
+def fetch_json(url: str):
+    response = requests.get(
         url,
         timeout=REQUEST_TIMEOUT,
         headers={"User-Agent": "FPL-HOME/4.0"},
     )
-    r.raise_for_status()
-    return r.json()
+    response.raise_for_status()
+    return response.json()
 
 
 @st.cache_data(ttl=CACHE_TTL, show_spinner=False)
 def load_fpl_data():
+    bootstrap = fetch_json(BOOTSTRAP_URL)
+    fixtures = fetch_json(FIXTURES_URL)
     return {
-        "bootstrap": fetch_json(BOOTSTRAP_URL),
-        "fixtures": fetch_json(FIXTURES_URL),
-        "updated": now_iso(),
+        "bootstrap": bootstrap,
+        "fixtures": fixtures,
+        "updated": utc_now(),
     }
 
 
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_player_summary(player_id: int):
+    return fetch_json(f"{FPL_BASE}/element-summary/{player_id}/")
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_fpl_team(team_id: int):
+    entry = fetch_json(f"{FPL_BASE}/entry/{int(team_id)}/")
+    history = None
+    try:
+        history = fetch_json(f"{FPL_BASE}/entry/{int(team_id)}/history/")
+    except Exception:
+        pass
+    return {"entry": entry, "history": history}
+
+
+@st.cache_data(ttl=CACHE_TTL, show_spinner=False)
+def load_fpl_team_picks(team_id: int, gw: int):
+    return fetch_json(f"{FPL_BASE}/entry/{int(team_id)}/event/{int(gw)}/picks/")
+
+
+def load_data_with_status():
+    try:
+        return load_fpl_data(), True, None
+    except Exception as exc:
+        return None, False, str(exc)
+
+
+# ============================================================
+# NORMALIZATION
+# ============================================================
+
 def normalize_data(raw):
-    b = raw["bootstrap"]
+    bootstrap = raw["bootstrap"]
+
     teams = {}
-    for t in b.get("teams", []):
+    for t in bootstrap.get("teams", []):
         teams[t["id"]] = {
             "id": t["id"],
             "name": t.get("name", ""),
@@ -151,16 +214,21 @@ def normalize_data(raw):
             "strength_defence_away": safe_float(t.get("strength_defence_away")),
         }
 
-    positions = {p["id"]: p.get("singular_name_short", "") for p in b.get("element_types", [])}
-    players = []
+    positions = {
+        p["id"]: p.get("singular_name_short", "")
+        for p in bootstrap.get("element_types", [])
+    }
 
-    for p in b.get("elements", []):
-        team = teams.get(p.get("team"), {})
+    players = []
+    for p in bootstrap.get("elements", []):
+        team_id = p.get("team")
+        team = teams.get(team_id, {"name": "Unknown", "short_name": "UNK"})
+
         players.append({
             "id": p.get("id"),
             "name": f"{p.get('first_name','')} {p.get('second_name','')}".strip(),
             "web_name": p.get("web_name", ""),
-            "team_id": p.get("team"),
+            "team_id": team_id,
             "team": team.get("name", ""),
             "team_short": team.get("short_name", ""),
             "position": positions.get(p.get("element_type"), "?"),
@@ -187,7 +255,9 @@ def normalize_data(raw):
             "expected_goal_involvements": safe_float(p.get("expected_goal_involvements")),
             "expected_goals_per_90": safe_float(p.get("expected_goals_per_90")),
             "expected_assists_per_90": safe_float(p.get("expected_assists_per_90")),
-            "expected_goal_involvements_per_90": safe_float(p.get("expected_goal_involvements_per_90")),
+            "expected_goal_involvements_per_90": safe_float(
+                p.get("expected_goal_involvements_per_90")
+            ),
             "chance_next_round": safe_float(p.get("chance_of_playing_next_round"), 100),
             "chance_this_round": safe_float(p.get("chance_of_playing_this_round"), 100),
             "status": p.get("status", "a"),
@@ -196,498 +266,681 @@ def normalize_data(raw):
             "clean_sheets_per_90": safe_float(p.get("clean_sheets_per_90")),
             "form_rank": safe_float(p.get("form_rank")),
             "points_per_game_rank": safe_float(p.get("points_per_game_rank")),
+            # FPL API price movement fields. These are current API fields,
+            # not invented historical prices.
+            "cost_change_event": safe_float(p.get("cost_change_event")),
+            "cost_change_start": safe_float(p.get("cost_change_start")),
+            "cost_change_event_fall": safe_float(p.get("cost_change_event_fall")),
+            "cost_change_start_fall": safe_float(p.get("cost_change_start_fall")),
+            "transfers_in_event": safe_float(p.get("transfers_in_event")),
+            "transfers_out_event": safe_float(p.get("transfers_out_event")),
+            "transfers_in": safe_float(p.get("transfers_in")),
+            "transfers_out": safe_float(p.get("transfers_out")),
         })
 
-    events = [{
-        "id": e.get("id"),
-        "name": e.get("name"),
-        "deadline": e.get("deadline_time"),
-        "finished": e.get("finished"),
-        "is_current": e.get("is_current"),
-        "is_next": e.get("is_next"),
-        "is_previous": e.get("is_previous"),
-        "average_score": e.get("average_entry_score"),
-        "highest_score": e.get("highest_score"),
-        "most_captained": e.get("most_captained"),
-        "top_element": e.get("top_element"),
-    } for e in b.get("events", [])]
+    events = []
+    for e in bootstrap.get("events", []):
+        events.append({
+            "id": e.get("id"),
+            "name": e.get("name"),
+            "deadline": e.get("deadline_time"),
+            "finished": e.get("finished"),
+            "is_current": e.get("is_current"),
+            "is_next": e.get("is_next"),
+            "is_previous": e.get("is_previous"),
+            "average_score": e.get("average_entry_score"),
+            "highest_score": e.get("highest_score"),
+            "most_captained": e.get("most_captained"),
+            "top_element": e.get("top_element"),
+        })
 
-    fixtures = [{
-        "id": f.get("id"),
-        "event": f.get("event"),
-        "team_h": f.get("team_h"),
-        "team_a": f.get("team_a"),
-        "team_h_score": f.get("team_h_score"),
-        "team_a_score": f.get("team_a_score"),
-        "finished": f.get("finished"),
-        "difficulty_h": safe_int(f.get("team_h_difficulty")),
-        "difficulty_a": safe_int(f.get("team_a_difficulty")),
-        "kickoff": f.get("kickoff_time"),
-    } for f in raw.get("fixtures", [])]
+    fixtures = []
+    for f in raw.get("fixtures", []):
+        fixtures.append({
+            "id": f.get("id"),
+            "event": f.get("event"),
+            "team_h": f.get("team_h"),
+            "team_a": f.get("team_a"),
+            "team_h_score": f.get("team_h_score"),
+            "team_a_score": f.get("team_a_score"),
+            "finished": f.get("finished"),
+            "difficulty_h": safe_int(f.get("team_h_difficulty")),
+            "difficulty_a": safe_int(f.get("team_a_difficulty")),
+            "kickoff": f.get("kickoff_time"),
+            "provisional_start_time": f.get("provisional_start_time"),
+        })
 
-    return {"teams": teams, "players": players, "events": events, "fixtures": fixtures}
+    return {
+        "teams": teams,
+        "players": players,
+        "events": events,
+        "fixtures": fixtures,
+        "updated": raw.get("updated", utc_now()),
+    }
 
+
+# ============================================================
+# GAMEWEEK / FIXTURES
+# ============================================================
 
 def get_current_gw(events):
-    cur = [e for e in events if e.get("is_current")]
-    if cur:
-        return cur[0]["id"]
+    current = [e for e in events if e.get("is_current")]
+    if current:
+        return current[0]["id"]
     nxt = [e for e in events if e.get("is_next")]
-    return nxt[0]["id"] if nxt else 1
+    if nxt:
+        return nxt[0]["id"]
+    return 1
 
 
-# ============================================================
-# OPTIONAL PUBLIC FPL TEAM ID
-# ============================================================
+def get_next_gw(events):
+    nxt = [e for e in events if e.get("is_next")]
+    return nxt[0]["id"] if nxt else get_current_gw(events)
 
-@st.cache_data(ttl=120, show_spinner=False)
-def fetch_manager_team(team_id, gw):
-    if not team_id:
-        return None
-    try:
-        summary = fetch_json(f"{FPL_BASE}/entry/{int(team_id)}/")
-        picks = fetch_json(f"{FPL_BASE}/entry/{int(team_id)}/event/{int(gw)}/picks/")
-        return {"summary": summary, "picks": picks}
-    except Exception:
-        return None
-
-
-# ============================================================
-# FIXTURE ENGINE
-# ============================================================
 
 def team_fixture_rows(data, team_id, gw=None, horizon=5):
-    gw = get_current_gw(data["events"]) if gw is None else gw
+    if gw is None:
+        gw = get_next_gw(data["events"])
+
     rows = []
     for f in data["fixtures"]:
-        if f["event"] is None or f["event"] < gw or f["event"] > gw + horizon - 1:
+        if f["event"] is None:
             continue
+        if f["event"] < gw or f["event"] > gw + horizon - 1:
+            continue
+
         if f["team_h"] == team_id:
-            opp = data["teams"].get(f["team_a"], {})
-            rows.append({"gw":f["event"],"opponent":opp.get("short_name","?"),
-                          "opponent_id":f["team_a"],"home":True,
-                          "difficulty":f["difficulty_h"],"kickoff":f["kickoff"]})
+            opponent = data["teams"].get(f["team_a"], {})
+            rows.append({
+                "gw": f["event"],
+                "opponent": opponent.get("short_name", "?"),
+                "opponent_id": f["team_a"],
+                "home": True,
+                "difficulty": f["difficulty_h"],
+                "kickoff": f["kickoff"],
+            })
         elif f["team_a"] == team_id:
-            opp = data["teams"].get(f["team_h"], {})
-            rows.append({"gw":f["event"],"opponent":opp.get("short_name","?"),
-                          "opponent_id":f["team_h"],"home":False,
-                          "difficulty":f["difficulty_a"],"kickoff":f["kickoff"]})
-    return sorted(rows, key=lambda x:(x["gw"],x["kickoff"] or ""))
+            opponent = data["teams"].get(f["team_h"], {})
+            rows.append({
+                "gw": f["event"],
+                "opponent": opponent.get("short_name", "?"),
+                "opponent_id": f["team_h"],
+                "home": False,
+                "difficulty": f["difficulty_a"],
+                "kickoff": f["kickoff"],
+            })
+
+    rows.sort(key=lambda x: (x["gw"], x["kickoff"] or ""))
+    return rows
 
 
 def fixture_score(fixtures):
     if not fixtures:
-        return 50
-    avg = sum(safe_float(x["difficulty"],3) for x in fixtures) / len(fixtures)
-    return clamp(100 - ((avg-1)/4)*100, 0, 100)
+        return 50.0
+    avg = sum(safe_float(x["difficulty"], 3) for x in fixtures) / len(fixtures)
+    return clamp(100 - ((avg - 1) / 4) * 100, 0, 100)
 
 
 def fixture_label(score):
-    return "Excellent" if score >= 75 else "Good" if score >= 60 else "Mixed" if score >= 45 else "Difficult"
+    if score >= 75:
+        return "Excellent"
+    if score >= 60:
+        return "Good"
+    if score >= 45:
+        return "Mixed"
+    return "Difficult"
 
 
-def fixture_color_emoji(difficulty):
-    d = safe_int(difficulty,3)
-    return "­ЪЪб" if d <= 2 else "­ЪЪА" if d == 3 else "­Ъћ┤"
-
-
-def fixture_run_text(fixtures):
-    return " ┬и ".join(
-        f"{fixture_color_emoji(x['difficulty'])} GW{x['gw']} {x['opponent']} {'H' if x['home'] else 'A'}"
-        for x in fixtures
+def fixture_text(fixtures, limit=5):
+    return " · ".join(
+        f"GW{x['gw']} {x['opponent']} {'H' if x['home'] else 'A'}"
+        for x in fixtures[:limit]
     )
+
+
+def fixture_swing(data, team_id):
+    upcoming = team_fixture_rows(data, team_id, horizon=5)
+    later = team_fixture_rows(
+        data,
+        team_id,
+        gw=get_next_gw(data["events"]) + 5,
+        horizon=5,
+    )
+    a = fixture_score(upcoming)
+    b = fixture_score(later)
+    return {
+        "current_score": a,
+        "next_score": b,
+        "swing": b - a,
+        "current_label": fixture_label(a),
+        "next_label": fixture_label(b),
+    }
 
 
 # ============================================================
 # PLAYER ANALYTICS
 # ============================================================
 
-def minutes_score(p):
-    chance = safe_float(p["chance_next_round"],100)
-    mins = safe_float(p["minutes"])
-    starts = safe_float(p["starts"])
-    base = 15 if mins <= 0 else min(100,45 + min(55,mins/1200*55))
-    if starts > 0 and mins > 0:
-        start_rate = clamp(starts/max(1,mins/90),0,1)
-        base = base*.65 + start_rate*100*.35
-    return clamp(base*chance/100,0,100)
+def minutes_score(player):
+    chance = safe_float(player.get("chance_next_round"), 100)
+    minutes = safe_float(player.get("minutes"))
+    starts = safe_float(player.get("starts"))
+
+    if minutes <= 0:
+        base = 15
+    else:
+        base = min(100, 45 + min(55, minutes / 1200 * 55))
+
+    if starts > 0 and minutes > 0:
+        start_rate = clamp(starts / max(1, minutes / 90), 0, 1)
+        base = base * .65 + start_rate * 100 * .35
+
+    return clamp(base * chance / 100, 0, 100)
 
 
-def risk_score(p):
-    injury = 100-safe_float(p["chance_next_round"],100)
-    low_mins = 100-minutes_score(p)
-    news_penalty = 15 if p.get("news") else 0
-    return clamp(injury*.45+low_mins*.45+news_penalty*.10,0,100)
+def risk_score(player):
+    injury_risk = 100 - safe_float(player.get("chance_next_round"), 100)
+    low_minutes = 100 - minutes_score(player)
+    news_penalty = 15 if player.get("news") else 0
+    return clamp(
+        injury_risk * .45 + low_minutes * .45 + news_penalty * .10,
+        0,
+        100,
+    )
 
 
-def player_radar_score(p,data):
-    fs = fixture_score(team_fixture_rows(data,p["team_id"],horizon=5))
-    form = clamp(p["form"]*10,0,100)
-    xgi = clamp(p["expected_goal_involvements_per_90"]*100,0,100)
-    ict = clamp(p["ict_index"],0,100)
-    mins = minutes_score(p)
-    risk = risk_score(p)
-    return clamp(form*.20+xgi*.25+ict*.15+mins*.20+fs*.20-risk*.15,0,100)
+def player_radar_score(player, data):
+    fixtures = team_fixture_rows(data, player["team_id"], horizon=5)
+    f_score = fixture_score(fixtures)
+    form = clamp(safe_float(player["form"]) * 10, 0, 100)
+    xgi = clamp(safe_float(player["expected_goal_involvements_per_90"]) * 100, 0, 100)
+    ict = clamp(safe_float(player["ict_index"]), 0, 100)
+    mins = minutes_score(player)
+    risk = risk_score(player)
+
+    score = (
+        form * .20
+        + xgi * .25
+        + ict * .15
+        + mins * .20
+        + f_score * .20
+    )
+    return clamp(score - risk * .15, 0, 100)
 
 
-def captain_score(p,data):
-    fs = fixture_score(team_fixture_rows(data,p["team_id"],horizon=3))
-    form = clamp(p["form"]*10,0,100)
-    xgi = clamp(p["expected_goal_involvements_per_90"]*100,0,100)
-    mins = minutes_score(p)
-    bonus = clamp(p["bonus"]/10,0,100)
-    home = 7 if team_fixture_rows(data,p["team_id"],horizon=1) and team_fixture_rows(data,p["team_id"],horizon=1)[0]["home"] else 0
-    return clamp(xgi*.32+form*.20+fs*.25+mins*.15+bonus*.08+home-risk_score(p)*.15,0,100)
+def captain_score(player, data):
+    fixtures = team_fixture_rows(data, player["team_id"], horizon=3)
+    f_score = fixture_score(fixtures)
+    form = clamp(safe_float(player["form"]) * 10, 0, 100)
+    xgi = clamp(safe_float(player["expected_goal_involvements_per_90"]) * 100, 0, 100)
+    mins = minutes_score(player)
+    bonus = clamp(safe_float(player["bonus"]) / 10, 0, 100)
+    home_bonus = 7 if fixtures and fixtures[0]["home"] else 0
+    risk = risk_score(player)
+
+    score = (
+        xgi * .32
+        + form * .20
+        + f_score * .25
+        + mins * .15
+        + bonus * .08
+        + home_bonus
+    )
+    return clamp(score - risk * .15, 0, 100)
 
 
-def differential_score(p,data):
-    radar = player_radar_score(p,data)
-    own_score = clamp(100-p["selected_by"]*4,0,100)
-    xgi = clamp(p["expected_goal_involvements_per_90"]*100,0,100)
-    return clamp(radar*.40+own_score*.25+xgi*.20+minutes_score(p)*.15,0,100)
+def differential_score(player, data):
+    radar = player_radar_score(player, data)
+    ownership_score = clamp(100 - safe_float(player["selected_by"]) * 4, 0, 100)
+    xgi = clamp(safe_float(player["expected_goal_involvements_per_90"]) * 100, 0, 100)
+    minutes = minutes_score(player)
+    return clamp(radar * .40 + ownership_score * .25 + xgi * .20 + minutes * .15, 0, 100)
 
 
-def add_scores(players,data):
-    out=[]
+def add_scores(players, data):
+    out = []
     for p in players:
-        q=dict(p)
-        q["radar_score"]=player_radar_score(p,data)
-        q["captain_score"]=captain_score(p,data)
-        q["differential_score"]=differential_score(p,data)
-        q["minutes_score"]=minutes_score(p)
-        q["risk_score"]=risk_score(p)
-        q["risk"]=risk_label(q["risk_score"])
-        q["confidence"]=confidence_label(max(q["radar_score"],q["captain_score"]))
-        out.append(q)
+        row = dict(p)
+        row["radar_score"] = player_radar_score(p, data)
+        row["captain_score"] = captain_score(p, data)
+        row["differential_score"] = differential_score(p, data)
+        row["minutes_score"] = minutes_score(p)
+        row["risk_score"] = risk_score(p)
+        out.append(row)
     return out
 
 
 # ============================================================
-# DEFENSIVE INTELLIGENCE
+# DEFENSIVE DATA + OWNER ENRICHMENT
 # ============================================================
 
-def team_defensive_profile(team,data):
-    sh=safe_float(team["strength_defence_home"])
-    sa=safe_float(team["strength_defence_away"])
-    strength=(sh+sa)/2
-    vals=[safe_float(t["strength_defence_home"])+safe_float(t["strength_defence_away"]) for t in data["teams"].values()]
-    lo=min(vals) if vals else 1
-    hi=max(vals) if vals else 100
-    norm=(strength*2-lo)/max(1,hi-lo)
-    vulnerability=clamp(100-norm*100,0,100)
-    # Proxy only when no admin event-level data exists.
-    left=clamp(vulnerability*.95+(100-sh)*.05,0,100)
-    center=clamp(vulnerability*1.08,0,100)
-    right=clamp(vulnerability*.92+(100-sa)*.08,0,100)
-    return {"defensive_strength":100-vulnerability,"vulnerability":vulnerability,
-            "left":left,"center":center,"right":right,
-            "strength_home":sh,"strength_away":sa,"source":"FPL proxy"}
+def default_defensive_profile(team, data):
+    strength_home = safe_float(team.get("strength_defence_home"))
+    strength_away = safe_float(team.get("strength_defence_away"))
+    strength = (strength_home + strength_away) / 2
+
+    strengths = [
+        safe_float(t.get("strength_defence_home")) +
+        safe_float(t.get("strength_defence_away"))
+        for t in data["teams"].values()
+    ]
+
+    min_s = min(strengths) if strengths else 1
+    max_s = max(strengths) if strengths else 100
+    normalized = (strength * 2 - min_s) / max(1, max_s - min_s)
+    vulnerability = clamp(100 - normalized * 100, 0, 100)
+
+    # These are explicitly proxies. They are NOT Opta/event data.
+    return {
+        "team_id": team["id"],
+        "team": team["name"],
+        "source": "FPL API proxy",
+        "defensive_strength": clamp(100 - vulnerability, 0, 100),
+        "vulnerability": vulnerability,
+        "left": clamp(vulnerability * .95 + (100 - strength_home) * .05, 0, 100),
+        "center": clamp(vulnerability * 1.08, 0, 100),
+        "right": clamp(vulnerability * .92 + (100 - strength_away) * .08, 0, 100),
+        "confidence": "Proxy",
+    }
 
 
-def load_enrichment():
-    return st.session_state.get("admin_enrichment", {})
+def get_enrichment():
+    return st.session_state.get("defensive_enrichment", {})
 
 
-def save_enrichment(data):
-    st.session_state["admin_enrichment"]=data
+def set_enrichment(enrichment):
+    st.session_state["defensive_enrichment"] = enrichment
 
 
-def enriched_defensive_profile(team,data):
-    base=team_defensive_profile(team,data)
-    extra=load_enrichment().get("teams",{}).get(str(team["id"]),{})
-    if not extra:
+def merged_defensive_profile(team, data):
+    base = default_defensive_profile(team, data)
+    enriched = get_enrichment().get(str(team["id"]))
+
+    if not enriched:
         return base
-    for k in ["left","center","right","vulnerability"]:
-        if k in extra:
-            base[k]=clamp(safe_float(extra[k]),0,100)
-    base["source"]="Admin enrichment"
-    base["confidence"]=extra.get("confidence","Admin supplied")
-    base["top_chance_sources"]=extra.get("top_chance_sources",[])
-    base["notes"]=extra.get("notes","")
-    return base
+
+    result = dict(base)
+    for key in ["left", "center", "right", "vulnerability", "defensive_strength"]:
+        if key in enriched and enriched[key] is not None:
+            result[key] = safe_float(enriched[key], result[key])
+
+    result["source"] = enriched.get("source", "Owner enrichment")
+    result["confidence"] = enriched.get("confidence", "Owner data")
+    result["gw"] = enriched.get("gw")
+    result["notes"] = enriched.get("notes", "")
+    return result
 
 
-def top_three_attack_zones(profile):
-    zones={"Left":profile["left"],"Center":profile["center"],"Right":profile["right"]}
-    return sorted(zones.items(),key=lambda x:x[1],reverse=True)[:3]
+def defensive_zone_rank(profile):
+    zones = {
+        "Left": safe_float(profile.get("left")),
+        "Center": safe_float(profile.get("center")),
+        "Right": safe_float(profile.get("right")),
+    }
+    return sorted(zones.items(), key=lambda x: x[1], reverse=True)
 
 
-def draw_pitch(profile,team_name):
-    fig=go.Figure()
-    fig.add_shape(type="rect",x0=0,y0=0,x1=100,y1=60,line=dict(color="rgba(255,255,255,.45)",width=2),fillcolor="rgba(0,0,0,0)")
-    for x in [33.33,66.66]:
-        fig.add_shape(type="line",x0=x,y0=0,x1=x,y1=60,line=dict(color="rgba(255,255,255,.2)",width=1))
-    zones=[(0,33.33,profile["left"],"LEFT"),(33.33,66.66,profile["center"],"CENTER"),(66.66,100,profile["right"],"RIGHT")]
-    for x0,x1,val,label in zones:
-        alpha=.12+val/100*.55
-        fig.add_shape(type="rect",x0=x0,y0=0,x1=x1,y1=60,fillcolor=f"rgba(255,90,95,{alpha})",line=dict(width=0))
-        fig.add_annotation(x=(x0+x1)/2,y=30,text=f"<b>{label}</b><br>{val:.0f}/100",showarrow=False,font=dict(size=15,color="white"))
-    fig.update_layout(title=f"{team_name} Рђћ Chance / Vulnerability Zones",height=360,margin=dict(l=5,r=5,t=45,b=5),
-                      paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
-                      xaxis=dict(visible=False,range=[0,100]),yaxis=dict(visible=False,range=[0,60]),font=dict(color="white"))
+# ============================================================
+# PITCH
+# ============================================================
+
+def draw_pitch(left_val, center_val, right_val, team_name):
+    fig = go.Figure()
+    fig.add_shape(
+        type="rect", x0=0, y0=0, x1=100, y1=60,
+        line=dict(color="rgba(255,255,255,.35)", width=2),
+        fillcolor="rgba(0,0,0,0)",
+    )
+
+    for x in [33.33, 66.66]:
+        fig.add_shape(
+            type="line", x0=x, y0=0, x1=x, y1=60,
+            line=dict(color="rgba(255,255,255,.20)", width=1),
+        )
+
+    zones = [
+        (0, 33.33, left_val, "LEFT"),
+        (33.33, 66.66, center_val, "CENTER"),
+        (66.66, 100, right_val, "RIGHT"),
+    ]
+
+    for x0, x1, value, label in zones:
+        alpha = .12 + value / 100 * .58
+        fig.add_shape(
+            type="rect", x0=x0, y0=0, x1=x1, y1=60,
+            fillcolor=f"rgba(255,80,80,{alpha})",
+            line=dict(width=0),
+        )
+        fig.add_annotation(
+            x=(x0 + x1) / 2,
+            y=30,
+            text=f"<b>{label}</b><br>{value:.0f}/100",
+            showarrow=False,
+            font=dict(size=15, color="white"),
+        )
+
+    fig.update_layout(
+        title=f"{team_name} — Defensive Vulnerability",
+        height=380,
+        margin=dict(l=5, r=5, t=45, b=5),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(visible=False, range=[0, 100]),
+        yaxis=dict(visible=False, range=[0, 60]),
+        font=dict(color="white"),
+    )
     return fig
 
 
 # ============================================================
-# ADMIN-ONLY ENRICHMENT
+# VERDICTS
 # ============================================================
 
-def admin_password():
-    try:
-        return str(st.secrets.get("ADMIN_PASSWORD",""))
-    except Exception:
-        return os.getenv("ADMIN_PASSWORD","")
+def verdict_for_player(player, data, purpose="general"):
+    if purpose == "captain":
+        score = captain_score(player, data)
+    elif purpose == "differential":
+        score = differential_score(player, data)
+    else:
+        score = player_radar_score(player, data)
+
+    risk = risk_score(player)
+    risk_label = "Low" if risk < 25 else "Medium" if risk < 55 else "High"
+
+    if score >= 80:
+        confidence = "Very High"
+    elif score >= 70:
+        confidence = "High"
+    elif score >= 60:
+        confidence = "Medium"
+    else:
+        confidence = "Low"
+
+    reasons = []
+    if safe_float(player["form"]) >= 5:
+        reasons.append("strong recent form")
+    if safe_float(player["expected_goal_involvements_per_90"]) >= .40:
+        reasons.append("strong xGI/90")
+    if minutes_score(player) >= 75:
+        reasons.append("good minutes security")
+    if fixture_score(team_fixture_rows(data, player["team_id"], horizon=3)) >= 65:
+        reasons.append("favorable upcoming fixtures")
+    if not reasons:
+        reasons.append("balanced underlying profile")
+
+    return {
+        "score": score,
+        "risk": risk_label,
+        "confidence": confidence,
+        "reason": ", ".join(reasons),
+    }
 
 
-def is_admin():
-    return bool(st.session_state.get("admin_ok",False))
-
-
-def admin_login():
-    if is_admin():
-        return True
-    st.sidebar.markdown("### ­Ъћљ Owner")
-    password=st.sidebar.text_input("Admin password",type="password",key="admin_password_input")
-    if password:
-        expected=admin_password()
-        if expected and hashlib.sha256(password.encode()).hexdigest()==hashlib.sha256(expected.encode()).hexdigest():
-            st.session_state["admin_ok"]=True
-            st.rerun()
-        elif expected and password:
-            st.sidebar.error("Wrong password.")
-        elif not expected:
-            st.sidebar.warning("Set ADMIN_PASSWORD in Streamlit Secrets.")
-    return is_admin()
-
-
-def admin_panel(data):
-    if not is_admin():
-        st.warning("Admin-only area.")
-        return
-
-    st.title("РџЎ№ИЈ FPL HOME Control Center")
-    st.caption("Owner-only. Users do not get access to enrichment uploads or system controls.")
-
-    tab1,tab2,tab3=st.tabs(["­ЪЊЦ Defensive Enrichment","­ЪЕ║ Data Health","­ЪЊб App Controls"])
-
-    with tab1:
-        st.subheader("Feed extra defensive data")
-        st.caption(
-            "Upload screenshots containing defensive/chance-location data. "
-            "Only the owner can upload them. Gemini converts them into structured enrichment; "
-            "the FPL API remains the numerical base layer."
-        )
-        team_names={t["name"]:t["id"] for t in data["teams"].values()}
-        team_name=st.selectbox("Team represented in the screenshot",sorted(team_names))
-        files=st.file_uploader(
-            "Upload image(s)",
-            type=["png","jpg","jpeg","webp"],
-            accept_multiple_files=True,
-        )
-
-        if st.button("­ЪДа Analyze & Save",disabled=not files):
-            if not GEMINI_AVAILABLE:
-                st.error("Install google-genai first.")
-            elif not get_gemini_key():
-                st.error("GEMINI_API_KEY is missing from server secrets.")
-            else:
-                with st.spinner("Extracting defensive intelligence..."):
-                    result=analyze_admin_images(files,team_name,data)
-                if result:
-                    enrichment=load_enrichment()
-                    enrichment.setdefault("teams",{})[str(team_names[team_name])]=result
-                    save_enrichment(enrichment)
-                    st.success("Defensive enrichment saved for this session.")
-                    st.json(result)
-
-        current=load_enrichment().get("teams",{}).get(str(team_names[team_name]),{})
-        if current:
-            st.markdown("#### Current enrichment")
-            st.json(current)
-
-    with tab2:
-        st.success("FPL Data Connected")
-        st.write(f"Teams: **{len(data['teams'])}**")
-        st.write(f"Players: **{len(data['players'])}**")
-        st.write(f"Fixtures: **{len(data['fixtures'])}**")
-        st.write(f"Current GW: **{get_current_gw(data['events'])}**")
-        st.write(f"Gemini: **{'Connected' if get_gemini_key() and GEMINI_AVAILABLE else 'Not configured'}**")
-        st.write(f"Last FPL refresh: **{data.get('updated','')[:19]}**")
-
-    with tab3:
-        st.info("For production, keep the repository private and store ADMIN_PASSWORD / GEMINI_API_KEY in Streamlit Secrets.")
-        if st.button("Clear enrichment from this session"):
-            st.session_state["admin_enrichment"]={}
-            st.success("Session enrichment cleared.")
-
-
-def get_gemini_key():
-    try:
-        if "GEMINI_API_KEY" in st.secrets:
-            return str(st.secrets["GEMINI_API_KEY"])
-    except Exception:
-        pass
-    return os.getenv("GEMINI_API_KEY","")
-
-
-def analyze_admin_images(files,team_name,data):
-    client=genai.Client(api_key=get_gemini_key())
-    parts=[]
-    for f in files:
-        raw=f.getvalue()
-        parts.append(types.Part.from_bytes(data=raw,mime_type=f.type or "image/png"))
-    prompt=f""" You are the defensive-data extraction layer for FPL HOME. Team: {team_name} The images are owner-provided football/FPL analytical data. Extract ONLY what is visibly supported. Return JSON only: {{ "left": number 0-100, "center": number 0-100, "right": number 0-100, "vulnerability": number 0-100, "confidence": "High/Medium/Low", "top_chance_sources": [ {{"zone":"Left/Center/Right","description":"short description","value":number}} ], "notes":"short explanation" }} If the source gives percentages/counts rather than a 0-100 vulnerability score, normalize them consistently and explain in notes. Do not invent missing values. If a zone cannot be established, use the FPL proxy only by leaving that zone null. """
-    try:
-        response=client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=[prompt]+parts,
-            config=types.GenerateContentConfig(response_mime_type="application/json",temperature=0.1,max_output_tokens=1200),
-        )
-        obj=json.loads(response.text)
-        return obj
-    except Exception as e:
-        st.error(f"AI extraction error: {e}")
-        return None
+def render_verdict(main, reason, confidence="Medium", risk="Medium", kicker="FPL HOME VERDICT"):
+    st.markdown(
+        f""" <div class="verdict"> <div class="verdict-kicker">{kicker}</div> <div class="verdict-main">{main}</div> <div> {risk_badge(risk)} <span class="badge blue">Confidence: {confidence}</span> </div> <div class="subtle" style="margin-top:8px">{reason}</div> </div> """,
+        unsafe_allow_html=True,
+    )
 
 
 # ============================================================
-# SEARCH + PLAYER PROFILE
+# GLOBAL SEARCH
 # ============================================================
 
 def global_search(data):
-    st.markdown('<div class="section-title">Global Search</div>',unsafe_allow_html=True)
-    q=st.text_input("Search player, team or GW",placeholder="e.g. Haaland, Arsenal, GW 8",label_visibility="collapsed")
-    if not q:
-        return None
+    st.title("🔎 Search")
+    query = st.text_input(
+        "Search players or clubs",
+        placeholder="e.g. Salah, Haaland, Liverpool...",
+    ).strip().lower()
 
-    ql=q.lower().strip()
-    players=data["players"]
-    matches=[p for p in players if ql in p["name"].lower() or ql in p["web_name"].lower() or ql in p["team"].lower()]
-    teams=[t for t in data["teams"].values() if ql in t["name"].lower() or ql in t["short_name"].lower()]
-    if ql.startswith("gw"):
-        try:
-            gw=int("".join(ch for ch in ql if ch.isdigit()))
-            st.session_state["selected_gw"]=gw
-            st.info(f"Gameweek {gw} selected.")
-        except Exception:
-            pass
-
-    if matches:
-        labels=[f"{p['name']} Рђћ {p['team_short']} Рђћ {money(p['price'])}" for p in matches[:20]]
-        selected=st.selectbox("Players",labels)
-        pid=next(p["id"] for p in matches if f"{p['name']} Рђћ {p['team_short']} Рђћ {money(p['price'])}"==selected)
-        return ("player",pid)
-    if teams:
-        labels=[f"{t['name']} Рђћ {t['short_name']}" for t in teams]
-        selected=st.selectbox("Teams",labels)
-        tid=next(t["id"] for t in teams if f"{t['name']} Рђћ {t['short_name']}"==selected)
-        return ("team",tid)
-    st.caption("No matching player or team.")
-    return None
-
-
-def player_profile(data,player_id):
-    scored=add_scores(data["players"],data)
-    p=next((x for x in scored if x["id"]==player_id),None)
-    if not p:
-        st.warning("Player not found.")
+    if not query:
+        st.info("Search any player or Premier League club.")
         return
-    fixtures=team_fixture_rows(data,p["team_id"],horizon=5)
-    st.title(f"­ЪЉц {p['name']}")
-    st.caption(f"{p['team']} ┬и {p['position']} ┬и {money(p['price'])}")
 
-    c1,c2,c3,c4=st.columns(4)
+    players = add_scores(data["players"], data)
+    player_hits = [
+        p for p in players
+        if query in p["name"].lower()
+        or query in p["web_name"].lower()
+        or query in p["team"].lower()
+        or query in p["team_short"].lower()
+    ][:20]
+
+    if player_hits:
+        st.subheader("Players")
+        for p in player_hits:
+            st.markdown(
+                f""" <div class="player-card"> <b>{p['name']}</b> · {p['team_short']} · {p['position']} <br><span class="subtle">{money(p['price'])} · Form {p['form']:.1f} · Radar {p['radar_score']:.1f}</span> </div> """,
+                unsafe_allow_html=True,
+            )
+            if st.button(f"Open {p['web_name']}", key=f"search_{p['id']}"):
+                st.session_state["selected_player_id"] = p["id"]
+                st.session_state["page"] = "Player Profile"
+                st.rerun()
+
+    team_hits = [
+        t for t in data["teams"].values()
+        if query in t["name"].lower() or query in t["short_name"].lower()
+    ]
+    if team_hits:
+        st.subheader("Clubs")
+        for t in team_hits:
+            fs = fixture_score(team_fixture_rows(data, t["id"], horizon=5))
+            st.markdown(
+                f""" <div class="player-card"> <b>{t['name']}</b> · Fixture Score {fs:.0f} <br><span class="subtle">{fixture_text(team_fixture_rows(data, t['id'], horizon=5))}</span> </div> """,
+                unsafe_allow_html=True,
+            )
+
+    if not player_hits and not team_hits:
+        st.warning("No matching player or club found.")
+
+
+# ============================================================
+# PLAYER PROFILE
+# ============================================================
+
+def player_profile(data):
+    st.title("👤 Player Profile")
+
+    players = add_scores(data["players"], data)
+    labels = {
+        f"{p['name']} — {p['team_short']} — {money(p['price'])}": p["id"]
+        for p in players
+    }
+
+    default_id = st.session_state.get("selected_player_id")
+    default_index = 0
+    if default_id:
+        for i, pid in enumerate(labels.values()):
+            if pid == default_id:
+                default_index = i
+                break
+
+    selected = st.selectbox("Player", list(labels.keys()), index=default_index)
+    player = next(p for p in players if p["id"] == labels[selected])
+    st.session_state["selected_player_id"] = player["id"]
+
+    v = verdict_for_player(player, data)
+
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f'<div class="metric"><div class="metric-label">RADAR</div><div class="metric-value">{p["radar_score"]:.0f}</div><div class="metric-sub">{confidence_label(p["radar_score"])}</div></div>',unsafe_allow_html=True)
+        st.metric("Price", money(player["price"]))
     with c2:
-        st.markdown(f'<div class="metric"><div class="metric-label">FORM</div><div class="metric-value">{p["form"]:.1f}</div><div class="metric-sub">{p["points_per_game"]:.1f} PPG</div></div>',unsafe_allow_html=True)
+        st.metric("Form", f"{player['form']:.1f}")
     with c3:
-        st.markdown(f'<div class="metric"><div class="metric-label">OWNERSHIP</div><div class="metric-value">{p["selected_by"]:.1f}%</div><div class="metric-sub">{p["total_points"]:.0f} total pts</div></div>',unsafe_allow_html=True)
+        st.metric("xGI/90", f"{player['expected_goal_involvements_per_90']:.2f}")
     with c4:
-        st.markdown(f'<div class="metric"><div class="metric-label">MINUTES</div><div class="metric-value">{p["minutes_score"]:.0f}</div><div class="metric-sub">{risk_label(p["risk_score"])} risk</div></div>',unsafe_allow_html=True)
+        st.metric("Ownership", pct(player["selected_by"]))
 
-    st.markdown('<div class="section">',unsafe_allow_html=True)
-    st.subheader("Why")
-    reasons=[]
-    if p["form"]>=5: reasons.append("strong recent form")
-    if p["expected_goal_involvements_per_90"]>=.4: reasons.append("strong xGI/90")
-    if p["minutes_score"]>=75: reasons.append("good minutes security")
-    if fixture_score(fixtures)>=65: reasons.append("favorable fixtures")
-    st.write(" ┬и ".join(reasons) if reasons else "Balanced profile.")
-    st.write(f"**Risk:** {risk_label(p['risk_score'])} ┬и **Confidence:** {confidence_label(p['radar_score'])}")
-    st.write(f"**xGI/90:** {p['expected_goal_involvements_per_90']:.2f} ┬и **ICT:** {p['ict_index']:.1f} ┬и **BPS:** {p['bps']:.0f}")
-    st.markdown("</div>",unsafe_allow_html=True)
+    render_verdict(
+        f"{player['name']} — Radar {v['score']:.1f}/100",
+        f"{v['reason']}. Minutes score {player['minutes_score']:.0f}/100.",
+        v["confidence"],
+        v["risk"],
+    )
 
-    st.subheader("Fixture Run")
-    st.write(fixture_run_text(fixtures))
-    st.subheader("What to watch")
-    if p["news"]:
-        st.warning(p["news"])
+    st.subheader("📊 Core FPL Data")
+    core = pd.DataFrame([{
+        "Total Points": player["total_points"],
+        "GW Points": player["event_points"],
+        "PPG": player["points_per_game"],
+        "Goals": player["goals"],
+        "Assists": player["assists"],
+        "Bonus": player["bonus"],
+        "BPS": player["bps"],
+        "Minutes": player["minutes"],
+        "xG": player["expected_goals"],
+        "xA": player["expected_assists"],
+        "xGI": player["expected_goal_involvements"],
+        "ICT": player["ict_index"],
+    }])
+    st.dataframe(core.round(2), use_container_width=True, hide_index=True)
+
+    fixtures = team_fixture_rows(data, player["team_id"], horizon=5)
+    st.subheader("📅 Fixtures")
+    st.dataframe(
+        pd.DataFrame([{
+            "GW": f["gw"],
+            "Opponent": f["opponent"],
+            "H/A": "H" if f["home"] else "A",
+            "Difficulty": f["difficulty"],
+        } for f in fixtures]),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.subheader("📰 FPL Status / News")
+    if player["news"]:
+        st.warning(player["news"])
     else:
-        st.success("No current FPL news flag in the data feed.")
+        st.success("No FPL news supplied by the API.")
+
+    if st.button("Load detailed player history", use_container_width=True):
+        try:
+            summary = load_player_summary(int(player["id"]))
+            histories = summary.get("history", [])
+            if histories:
+                df = pd.DataFrame(histories)
+                cols = [c for c in [
+                    "round", "minutes", "total_points", "goals_scored",
+                    "assists", "clean_sheets", "bonus", "bps",
+                    "expected_goals", "expected_assists"
+                ] if c in df.columns]
+                st.dataframe(df[cols].tail(10), use_container_width=True, hide_index=True)
+            else:
+                st.info("No detailed history returned.")
+        except Exception as exc:
+            st.error(f"Unable to load player history: {exc}")
 
 
 # ============================================================
 # HOME
 # ============================================================
 
-def get_user_team(data,gw):
-    team_id=st.session_state.get("fpl_team_id")
-    if not team_id:
-        return None
-    return fetch_manager_team(team_id,gw)
-
-
 def home(data):
-    current=get_current_gw(data["events"])
-    gw=st.session_state.get("selected_gw",current)
-    players=add_scores(data["players"],data)
-    active=[p for p in players if p["status"]=="a"]
+    next_gw = get_next_gw(data["events"])
+    players = add_scores(data["players"], data)
+    active = [p for p in players if p["status"] == "a"]
 
-    cap=sorted([p for p in active if p["position"] in ["MID","FWD"]],key=lambda x:x["captain_score"],reverse=True)
-    cap=cap[0] if cap else None
+    captain_rank = sorted(
+        [p for p in active if p["position"] in ["MID", "FWD"] and p["minutes"] > 250],
+        key=lambda p: p["captain_score"],
+        reverse=True,
+    )
 
-    team=get_user_team(data,gw)
-    team_points=None
-    rank=None
-    if team:
-        team_points=team["picks"].get("entry_history",{}).get("points")
-        rank=team["summary"].get("summary_overall_rank")
+    top = captain_rank[:3]
+    best_fixture_teams = sorted(
+        data["teams"].values(),
+        key=lambda t: fixture_score(team_fixture_rows(data, t["id"], horizon=5)),
+        reverse=True,
+    )[:3]
 
     st.markdown(
-        f""" <div class="brand"> <div class="brand-mark">РЎЏРџй</div> <div><div class="brand-name">FPL HOME</div><div class="brand-tag">YOUR FANTASY COMMAND CENTER</div></div> </div> """,unsafe_allow_html=True)
+        f""" <div class="topbar"> <div class="brand">⚽ FPL <span>HOME</span></div> <div class="subtle">The next FPL decision — GW {next_gw}</div> </div> """,
+        unsafe_allow_html=True,
+    )
 
-    deadline=next((e["deadline"] for e in data["events"] if e["id"]==gw),None)
-    deadline_text=deadline[:16].replace("T"," ") if deadline else "Рђћ"
+    st.title("🏠 Home")
+    st.caption("Minimal view. Focus on the decisions that matter most this Gameweek.")
 
-    if cap:
-        st.markdown(f""" <div class="hero page-fade"> <div class="hero-kicker">GAMEWEEK VERDICT ┬и GW {gw}</div> <div class="hero-main">­ЪЉЉ {cap["name"]}</div> <div class="hero-sub">Best current captain profile ┬и Radar {cap["captain_score"]:.0f} ┬и {risk_label(cap["risk_score"])} risk ┬и {confidence_label(cap["captain_score"])} confidence</div> </div> """,unsafe_allow_html=True)
-
-    c1,c2,c3,c4=st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
-        value=f"{team_points}" if team_points is not None else "Рђћ"
-        st.markdown(f'<div class="metric"><div class="metric-label">MY GW POINTS</div><div class="metric-value">{value}</div><div class="metric-sub">connect FPL Team ID</div></div>',unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-label">GAMEWEEK</div><div class="metric-value">GW {next_gw}</div><div class="metric-sub">next planning point</div></div>',
+            unsafe_allow_html=True,
+        )
     with c2:
-        value=f"{rank:,}" if rank else "Рђћ"
-        st.markdown(f'<div class="metric"><div class="metric-label">OVERALL RANK</div><div class="metric-value">{value}</div><div class="metric-sub">personalized when linked</div></div>',unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-label">PLAYERS</div><div class="metric-value">{len(active)}</div><div class="metric-sub">active FPL players</div></div>',
+            unsafe_allow_html=True,
+        )
     with c3:
-        st.markdown(f'<div class="metric"><div class="metric-label">CAPTAIN RADAR</div><div class="metric-value">{cap["captain_score"]:.0f}' if cap else '<div class="metric"><div class="metric-label">CAPTAIN RADAR</div><div class="metric-value">Рђћ',unsafe_allow_html=True)
-        st.markdown('</div>',unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-label">FPL DATA</div><div class="metric-value">LIVE</div><div class="metric-sub">public FPL API</div></div>',
+            unsafe_allow_html=True,
+        )
     with c4:
-        alerts=sum(1 for p in active if p["risk_score"]>=55)
-        st.markdown(f'<div class="metric"><div class="metric-label">RISK FLAGS</div><div class="metric-value">{alerts}</div><div class="metric-sub">high-risk players</div></div>',unsafe_allow_html=True)
+        linked = st.session_state.get("fpl_team_id")
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-label">MY TEAM</div><div class="metric-value">{"LINKED" if linked else "NOT LINKED"}</div><div class="metric-sub">optional FPL Team ID</div></div>',
+            unsafe_allow_html=True,
+        )
 
-    st.markdown('<div class="section page-fade">',unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Most important decision</div>',unsafe_allow_html=True)
-    if cap:
-        st.markdown(f'<div class="rec"><div class="rec-title">­ЪЉЉ Captain: {cap["name"]}</div><div class="rec-sub">Radar {cap["captain_score"]:.0f} ┬и xGI/90 {cap["expected_goal_involvements_per_90"]:.2f} ┬и {risk_label(cap["risk_score"])} risk</div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="rec"><div class="rec-title">РЈ▒ Deadline</div><div class="rec-sub">{deadline_text}</div></div>',unsafe_allow_html=True)
-    st.markdown('</div>',unsafe_allow_html=True)
-
-    if not team:
-        st.info("­ЪњА Want a personalized Home? Enter your FPL Team ID in the Settings tab. No FPL password is required.")
+    st.markdown('<div class="section-title">👑 Captain decision</div>', unsafe_allow_html=True)
+    if top:
+        safe_pick = top[0]
+        upside = sorted(top, key=lambda p: (p["expected_goal_involvements_per_90"], p["differential_score"]), reverse=True)[0]
+        col1, col2 = st.columns(2)
+        with col1:
+            render_verdict(
+                f"SAFE PICK · {safe_pick['name']}",
+                f"{safe_pick['team_short']} · Captain Score {safe_pick['captain_score']:.1f}. {verdict_for_player(safe_pick, data, 'captain')['reason']}.",
+                verdict_for_player(safe_pick, data, "captain")["confidence"],
+                verdict_for_player(safe_pick, data, "captain")["risk"],
+                "SAFE CAPTAIN",
+            )
+        with col2:
+            render_verdict(
+                f"HIGH UPSIDE · {upside['name']}",
+                f"{upside['team_short']} · xGI/90 {upside['expected_goal_involvements_per_90']:.2f}. Higher upside can come with more variance.",
+                "Medium",
+                "Medium",
+                "HIGH UPSIDE",
+            )
     else:
-        st.success(f"Personalized team connected: #{team['summary'].get('id', 'Рђћ')}.")
+        st.info("Not enough eligible players for a captain recommendation.")
+
+    st.markdown('<div class="section-title">🛡️ Defensive opportunity</div>', unsafe_allow_html=True)
+    zone_rows = []
+    for t in data["teams"].values():
+        profile = merged_defensive_profile(t, data)
+        zones = defensive_zone_rank(profile)
+        zone_rows.append({
+            "Team": t["name"],
+            "Top Weak Zone": zones[0][0],
+            "Vulnerability": round(zones[0][1], 0),
+            "Data": profile["source"],
+        })
+
+    zone_df = pd.DataFrame(zone_rows).sort_values("Vulnerability", ascending=False)
+    st.dataframe(zone_df.head(3), use_container_width=True, hide_index=True)
+
+    st.markdown('<div class="section-title">📅 Fixture edge</div>', unsafe_allow_html=True)
+    st.dataframe(
+        pd.DataFrame([{
+            "Team": t["name"],
+            "Fixture Score": round(fixture_score(team_fixture_rows(data, t["id"], horizon=5)), 0),
+            "Run": fixture_text(team_fixture_rows(data, t["id"], horizon=5)),
+        } for t in best_fixture_teams]),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.markdown(
+        '<div class="disclaimer">Model scores are decision-support signals, not predicted FPL points or guarantees.</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ============================================================
@@ -695,101 +948,160 @@ def home(data):
 # ============================================================
 
 def defensive_radar(data):
-    st.title("­ЪЏА Defensive Radar")
-    st.caption("Free FPL data first. Owner-provided event/chance data enriches the model when available.")
+    st.title("🛡️ Defensive Radar")
+    st.caption("Core FPL API strength + optional owner-only defensive enrichment.")
 
-    names={t["name"]:t["id"] for t in data["teams"].values()}
-    selected=st.selectbox("Team",sorted(names))
-    team=data["teams"][names[selected]]
-    profile=enriched_defensive_profile(team,data)
+    teams = data["teams"]
+    names = sorted(t["name"] for t in teams.values())
+    selected_name = st.selectbox("Select team", names)
+    team = next(t for t in teams.values() if t["name"] == selected_name)
+    profile = merged_defensive_profile(team, data)
 
-    left,right=st.columns([1.15,1])
-    with left:
-        st.plotly_chart(draw_pitch(profile,selected),use_container_width=True)
-    with right:
-        st.subheader("Defensive profile")
-        for label,key in [("Left zone","left"),("Center zone","center"),("Right zone","right"),("Overall vulnerability","vulnerability")]:
-            st.progress(int(profile[key]))
-            st.caption(f"{label}: {profile[key]:.0f}/100")
-        st.caption(f"Source: {profile.get('source','FPL proxy')}")
+    c1, c2 = st.columns([1.15, 1])
+    with c1:
+        st.plotly_chart(
+            draw_pitch(profile["left"], profile["center"], profile["right"], selected_name),
+            use_container_width=True,
+        )
+    with c2:
+        st.markdown(
+            f""" <div class="card"> <b>Data source:</b> {profile['source']}<br> <b>Confidence:</b> {profile.get('confidence','')}<br> <b>Overall vulnerability:</b> {profile['vulnerability']:.0f}/100<br> <b>Defensive strength:</b> {profile['defensive_strength']:.0f}/100 </div> """,
+            unsafe_allow_html=True,
+        )
+        if profile.get("notes"):
+            st.info(profile["notes"])
 
-    top=top_three_attack_zones(profile)
-    st.subheader("­Ъј» Top 3 opportunity zones")
-    for i,(zone,val) in enumerate(top,1):
-        st.markdown(f'<div class="rec"><div class="rec-title">#{i} {zone} ┬и {val:.0f}/100</div><div class="rec-sub">Higher score = greater modeled vulnerability / opportunity.</div></div>',unsafe_allow_html=True)
+    st.subheader("🎯 Top 3 Defensive Opportunity Zones")
+    top3 = defensive_zone_rank(profile)[:3]
+    cols = st.columns(3)
+    for col, (zone, value) in zip(cols, top3):
+        with col:
+            st.markdown(
+                f""" <div class="zone-card"> <div class="metric-label">OPPORTUNITY #{top3.index((zone,value))+1}</div> <div class="metric-value">{zone}</div> <div class="metric-sub">Vulnerability {value:.0f}/100</div> </div> """,
+                unsafe_allow_html=True,
+            )
 
-    if profile.get("top_chance_sources"):
-        st.subheader("­ЪЊЇ Owner-supplied chance evidence")
-        st.dataframe(pd.DataFrame(profile["top_chance_sources"]),use_container_width=True,hide_index=True)
-
-    st.subheader("РџА Players who can exploit the matchup")
-    players=add_scores(data["players"],data)
-    pool=[p for p in players if p["team_id"]!=team["id"] and p["position"] in ["MID","FWD"] and p["status"]=="a"]
-    rows=[]
-    for p in sorted(pool,key=lambda x:x["radar_score"],reverse=True)[:20]:
-        rows.append({"Player":p["name"],"Team":p["team_short"],"Pos":p["position"],"Price":money(p["price"]),
-                     "Own %":round(p["selected_by"],1),"xGI/90":round(p["expected_goal_involvements_per_90"],2),
-                     "Minutes":round(p["minutes_score"]), "Radar":round(p["radar_score"],1),
-                     "Risk":p["risk"]})
-    st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
-
-
-# ============================================================
-# H2H
-# ============================================================
-
-def h2h(data):
-    st.title("Рџћ Head-to-Head")
-    names=sorted(t["name"] for t in data["teams"].values())
-    a_name,b_name=st.columns(2)
-    with a_name: a=st.selectbox("Team A",names,key="h2h_a")
-    with b_name: b=st.selectbox("Team B",names,index=min(1,len(names)-1),key="h2h_b")
-    if a==b:
-        st.warning("Select two different teams.")
-        return
-    ta=next(t for t in data["teams"].values() if t["name"]==a)
-    tb=next(t for t in data["teams"].values() if t["name"]==b)
-    pa=enriched_defensive_profile(ta,data)
-    pb=enriched_defensive_profile(tb,data)
-    players=add_scores(data["players"],data)
-    aa=[p for p in players if p["team_id"]==ta["id"] and p["status"]=="a"]
-    bb=[p for p in players if p["team_id"]==tb["id"] and p["status"]=="a"]
-    attack_a=sum(sorted([p["radar_score"] for p in aa],reverse=True)[:5])/max(1,min(5,len(aa)))
-    attack_b=sum(sorted([p["radar_score"] for p in bb],reverse=True)[:5])/max(1,min(5,len(bb)))
-    fa=fixture_score(team_fixture_rows(data,ta["id"],horizon=5))
-    fb=fixture_score(team_fixture_rows(data,tb["id"],horizon=5))
-    st.dataframe(pd.DataFrame({
-        "Metric":["Defensive Strength","Vulnerability","Attack Radar","Fixture Score","Left","Center","Right"],
-        a:[pa["defensive_strength"],pa["vulnerability"],attack_a,fa,pa["left"],pa["center"],pa["right"]],
-        b:[pb["defensive_strength"],pb["vulnerability"],attack_b,fb,pb["left"],pb["center"],pb["right"]],
-    }).round(1),use_container_width=True,hide_index=True)
-    winner=a if attack_a>=attack_b else b
-    st.success(f"Current model edge: **{winner}**. This is a model comparison, not a points guarantee.")
+    st.subheader("📌 Important data distinction")
+    st.warning(
+        "If the profile says FPL API proxy, the left/center/right zones are analytical proxies "
+        "derived from FPL team-strength fields. They are not claimed Opta/StatsBomb event data."
+    )
 
 
 # ============================================================
-# DIFFERENTIAL
+# FIXTURE DIFFICULTY / SWING
 # ============================================================
 
-def differential_scout(data):
-    st.title("­Ъњј Differential Scout")
-    c1,c2,c3=st.columns(3)
-    with c1: own=st.slider("Max ownership %",1.0,30.0,10.0,.5)
-    with c2: price=st.slider("Minimum price",3.5,15.0,5.0,.1)
-    with c3: pos=st.multiselect("Positions",["GKP","DEF","MID","FWD"],["MID","FWD"])
-    players=add_scores(data["players"],data)
-    pool=[p for p in players if p["status"]=="a" and p["selected_by"]<=own and p["price"]>=price and p["position"] in pos and p["minutes"]>100]
-    pool=sorted(pool,key=lambda x:x["differential_score"],reverse=True)
-    if not pool:
-        st.info("No players match these filters.")
-        return
-    rows=[{"Rank":i+1,"Player":p["name"],"Team":p["team_short"],"Pos":p["position"],"Price":money(p["price"]),
-           "Own %":round(p["selected_by"],1),"Form":p["form"],"xGI/90":round(p["expected_goal_involvements_per_90"],2),
-           "Radar":round(p["differential_score"],1),"Minutes":round(p["minutes_score"]),"Risk":p["risk"],
-           "Confidence":p["confidence"]} for i,p in enumerate(pool[:30])]
-    st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
-    p=pool[0]
-    st.success(f"Best current differential: **{p['name']}** Рђћ {p['differential_score']:.0f}/100. Why: ownership {p['selected_by']:.1f}%, xGI/90 {p['expected_goal_involvements_per_90']:.2f}, {p['risk']} risk.")
+def fixtures_page(data):
+    st.title("🟢🟡🔴 Fixture Difficulty")
+    st.caption("Lower FPL fixture difficulty means a better fixture. Scores are normalized for comparison.")
+
+    rows = []
+    for team in data["teams"].values():
+        fixtures = team_fixture_rows(data, team["id"], horizon=5)
+        score = fixture_score(fixtures)
+        swing = fixture_swing(data, team["id"])
+        rows.append({
+            "Team": team["name"],
+            "Score": round(score, 1),
+            "Verdict": fixture_label(score),
+            "GW Run": fixture_text(fixtures),
+            "Swing": round(swing["swing"], 1),
+        })
+
+    df = pd.DataFrame(rows).sort_values("Score", ascending=False)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    st.subheader("🔄 Fixture Swing")
+    st.caption("Compares the next five fixtures with the following five. Positive = easier later run.")
+    st.dataframe(
+        df.sort_values("Swing", ascending=False)[
+            ["Team", "Score", "Swing", "GW Run"]
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+# ============================================================
+# WHAT CHANGED / PRICE WATCH
+# ============================================================
+
+def what_changed(data):
+    st.title("📈 What Changed")
+    st.caption("Only changes exposed by the current FPL API are shown. No invented player history.")
+
+    players = add_scores(data["players"], data)
+    rows = []
+    for p in players:
+        if (
+            p["cost_change_event"] != 0
+            or p["transfers_in_event"] != 0
+            or p["transfers_out_event"] != 0
+            or p["news"]
+            or p["status"] != "a"
+        ):
+            rows.append({
+                "Player": p["name"],
+                "Team": p["team_short"],
+                "Price": money(p["price"]),
+                "GW Price Δ": p["cost_change_event"],
+                "GW Transfers In": int(p["transfers_in_event"]),
+                "GW Transfers Out": int(p["transfers_out_event"]),
+                "Status": p["status"],
+                "News": p["news"][:80],
+            })
+
+    if rows:
+        st.dataframe(
+            pd.DataFrame(rows).sort_values(
+                ["GW Price Δ", "GW Transfers In"],
+                ascending=[False, False],
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No API-exposed changes match the current filters.")
+
+    st.info(
+        "The app does not manufacture a historical comparison when the FPL API does not provide it. "
+        "For deeper historical player-by-player analysis, use the Player Profile history endpoint."
+    )
+
+
+def price_watch(data):
+    st.title("💰 Price Watch")
+    st.caption("Current price movement from FPL API fields. Historical prices are not fabricated.")
+
+    players = add_scores(data["players"], data)
+    rows = []
+    for p in players:
+        delta = p["cost_change_event"]
+        if delta != 0:
+            rows.append({
+                "Player": p["name"],
+                "Team": p["team_short"],
+                "Current Price": money(p["price"]),
+                "Current GW Δ": delta,
+                "Season Δ": p["cost_change_start"],
+                "Transfers In GW": int(p["transfers_in_event"]),
+                "Transfers Out GW": int(p["transfers_out_event"]),
+            })
+
+    if rows:
+        st.dataframe(
+            pd.DataFrame(rows).sort_values("Current GW Δ", ascending=False),
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("No current price movements exposed by the API.")
+
+    st.markdown(
+        '<div class="disclaimer">Historical daily prices are intentionally not invented. If a historical-price source is added later, it will be labeled separately.</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ============================================================
@@ -797,25 +1109,66 @@ def differential_scout(data):
 # ============================================================
 
 def captaincy(data):
-    st.title("­ЪЉЉ Captaincy Planner")
-    players=add_scores(data["players"],data)
-    eligible=[p for p in players if p["status"]=="a" and p["position"] in ["MID","FWD"] and p["minutes"]>250]
-    ranked=sorted(eligible,key=lambda x:x["captain_score"],reverse=True)[:25]
-    rows=[]
-    for i,p in enumerate(ranked,1):
-        fx=team_fixture_rows(data,p["team_id"],horizon=3)
-        rows.append({"Rank":i,"Player":p["name"],"Team":p["team_short"],"Fixture Run":fixture_run_text(fx),
-                     "Price":money(p["price"]),"Form":p["form"],"xGI/90":round(p["expected_goal_involvements_per_90"],2),
-                     "Captain":round(p["captain_score"],1),"Risk":p["risk"],"Confidence":p["confidence"]})
-    st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
-    if ranked:
-        safe=sorted(ranked,key=lambda x:(x["risk_score"],-x["captain_score"]))[0]
-        upside=sorted(ranked,key=lambda x:(x["captain_score"]+max(0,30-x["selected_by"])),reverse=True)[0]
-        c1,c2=st.columns(2)
-        with c1:
-            st.markdown(f'<div class="section"><div class="section-title">Safe Pick</div><h3>­ЪЉЉ {safe["name"]}</h3><p>Captain {safe["captain_score"]:.0f} ┬и {safe["risk"]} risk ┬и {safe["confidence"]} confidence</p></div>',unsafe_allow_html=True)
-        with c2:
-            st.markdown(f'<div class="section"><div class="section-title">High Upside</div><h3>­Ъџђ {upside["name"]}</h3><p>Captain {upside["captain_score"]:.0f} ┬и Ownership {upside["selected_by"]:.1f}%</p></div>',unsafe_allow_html=True)
+    st.title("👑 Captaincy")
+    st.caption("Safe Pick + High Upside. Scores are model signals, not projected points.")
+
+    players = add_scores(data["players"], data)
+    eligible = [
+        p for p in players
+        if p["status"] == "a"
+        and p["position"] in ["MID", "FWD"]
+        and p["minutes"] > 250
+    ]
+    ranked = sorted(eligible, key=lambda p: p["captain_score"], reverse=True)
+
+    if not ranked:
+        st.warning("No eligible captain candidates.")
+        return
+
+    safe_pick = ranked[0]
+    upside = sorted(
+        ranked,
+        key=lambda p: (
+            p["expected_goal_involvements_per_90"] * 0.55
+            + p["captain_score"] * 0.25
+            + (100 - p["selected_by"] * 2) * 0.20
+        ),
+        reverse=True,
+    )[0]
+
+    c1, c2 = st.columns(2)
+    with c1:
+        v = verdict_for_player(safe_pick, data, "captain")
+        render_verdict(
+            f"{safe_pick['name']} · {safe_pick['captain_score']:.1f}",
+            f"{safe_pick['team_short']} · {v['reason']}.",
+            v["confidence"], v["risk"], "SAFE PICK",
+        )
+    with c2:
+        v = verdict_for_player(upside, data, "captain")
+        render_verdict(
+            f"{upside['name']} · {upside['captain_score']:.1f}",
+            f"{upside['team_short']} · xGI/90 {upside['expected_goal_involvements_per_90']:.2f}.",
+            v["confidence"], v["risk"], "HIGH UPSIDE",
+        )
+
+    st.subheader("Top captain candidates")
+    rows = []
+    for i, p in enumerate(ranked[:20], 1):
+        v = verdict_for_player(p, data, "captain")
+        rows.append({
+            "Rank": i,
+            "Player": p["name"],
+            "Team": p["team_short"],
+            "Fixture": fixture_text(team_fixture_rows(data, p["team_id"], horizon=3), 3),
+            "Price": money(p["price"]),
+            "Form": p["form"],
+            "xGI/90": round(p["expected_goal_involvements_per_90"], 2),
+            "Minutes": round(p["minutes_score"]),
+            "Captain Score": round(p["captain_score"], 1),
+            "Risk": v["risk"],
+        })
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 # ============================================================
@@ -823,47 +1176,100 @@ def captaincy(data):
 # ============================================================
 
 def transfer_planner(data):
-    st.title("­Ъћё Transfer Planner")
-    st.caption("Personalized mode uses your public FPL Team ID; manual mode remains available.")
-    team_id=st.number_input("FPL Team ID (optional)",min_value=0,value=int(st.session_state.get("fpl_team_id") or 0),step=1)
-    if team_id:
-        st.session_state["fpl_team_id"]=team_id
+    st.title("🔄 Transfer Planner")
+    st.caption("Use your linked FPL team when available, or select a squad manually.")
 
-    gw=st.session_state.get("selected_gw",get_current_gw(data["events"]))
-    manager=get_user_team(data,gw)
+    players = add_scores(data["players"], data)
+    linked = st.session_state.get("fpl_team_id")
 
-    players=add_scores(data["players"],data)
-    if manager:
-        ids={x["element"] for x in manager["picks"].get("picks",[])}
-        current=[p for p in players if p["id"] in ids]
-        st.success(f"Loaded {len(current)} players from Team ID.")
-    else:
-        labels={f"{p['name']} Рђћ {p['team_short']} Рђћ {money(p['price'])}":p["id"] for p in players if p["status"]=="a"}
-        selected=st.multiselect("Current squad",list(labels),max_selections=15)
-        current=[p for p in players if p["id"] in {labels[x] for x in selected}]
+    current_ids = set()
 
-    if not current:
-        st.info("Connect Team ID or select your current squad.")
+    if linked:
+        st.success(f"Linked FPL Team ID: {linked}")
+        gw = get_current_gw(data["events"])
+        try:
+            picks = load_fpl_team_picks(int(linked), gw)
+            current_ids = {x["element"] for x in picks.get("picks", [])}
+            st.caption(f"Loaded {len(current_ids)} players from GW {gw}.")
+        except Exception as exc:
+            st.warning(f"Could not load linked squad: {exc}")
+
+    labels = {
+        f"{p['name']} — {p['team_short']} — {money(p['price'])}": p["id"]
+        for p in players if p["status"] == "a"
+    }
+
+    if not current_ids:
+        selected = st.multiselect("Your current squad", list(labels.keys()), max_selections=15)
+        current_ids = {labels[x] for x in selected}
+
+    free_transfers = st.number_input("Free Transfers", 1, 5, 1)
+    bank = st.number_input("Money in Bank (£m)", 0.0, 20.0, 0.0, .1)
+
+    if not current_ids:
+        st.info("Link your FPL Team ID or select your squad.")
         return
 
-    bank=st.number_input("Money in Bank (┬Бm)",0.0,20.0,0.0,.1)
-    out=sorted(current,key=lambda x:x["radar_score"])[:8]
-    candidates=[p for p in players if p["status"]=="a" and p["id"] not in {x["id"] for x in current}]
-    suggestions=[]
-    for op in out:
-        pool=[p for p in candidates if p["position"]==op["position"] and p["price"]<=op["price"]+bank]
-        for ip in sorted(pool,key=lambda x:x["radar_score"],reverse=True)[:4]:
-            gain=ip["radar_score"]-op["radar_score"]
-            if gain>0:
-                fixture_gain=fixture_score(team_fixture_rows(data,ip["team_id"],horizon=5))-fixture_score(team_fixture_rows(data,op["team_id"],horizon=5))
-                suggestions.append({"OUT":op["name"],"IN":ip["name"],"Price":money(ip["price"]),"Radar Gain":round(gain,1),
-                                    "Fixture Gain":round(fixture_gain,1),"Minutes Security":round(ip["minutes_score"]),
-                                    "Risk":ip["risk"],"Confidence":confidence_label(gain+60)})
-    suggestions=sorted(suggestions,key=lambda x:x["Radar Gain"]+x["Fixture Gain"]*.25,reverse=True)
-    st.dataframe(pd.DataFrame(suggestions[:25]),use_container_width=True,hide_index=True)
+    current = [p for p in players if p["id"] in current_ids]
+    out_candidates = sorted(current, key=lambda p: p["radar_score"])
+
+    st.subheader("🔻 Suggested OUT")
+    st.dataframe(
+        pd.DataFrame([{
+            "Player": p["name"],
+            "Team": p["team_short"],
+            "Price": money(p["price"]),
+            "Radar": round(p["radar_score"], 1),
+            "Risk": "Low" if p["risk_score"] < 25 else "Medium" if p["risk_score"] < 55 else "High",
+        } for p in out_candidates]),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    candidates = [
+        p for p in players
+        if p["status"] == "a" and p["id"] not in current_ids
+    ]
+
+    suggestions = []
+    for out_player in out_candidates[:5]:
+        max_price = out_player["price"] + bank
+        same_pos = [
+            p for p in candidates
+            if p["position"] == out_player["position"]
+            and p["price"] <= max_price
+        ]
+        for candidate in sorted(same_pos, key=lambda p: p["radar_score"], reverse=True)[:5]:
+            gain = candidate["radar_score"] - out_player["radar_score"]
+            if gain > 0:
+                suggestions.append({
+                    "OUT": out_player["name"],
+                    "IN": candidate["name"],
+                    "Position": candidate["position"],
+                    "Price": money(candidate["price"]),
+                    "Radar Gain": round(gain, 1),
+                    "IN Radar": round(candidate["radar_score"], 1),
+                    "Risk": "Low" if candidate["risk_score"] < 25 else "Medium" if candidate["risk_score"] < 55 else "High",
+                })
+
+    suggestions.sort(key=lambda x: x["Radar Gain"], reverse=True)
+    st.subheader("🔺 Suggested IN")
     if suggestions:
-        s=suggestions[0]
-        st.success(f"Best current move: **{s['OUT']} Рєњ {s['IN']}** ┬и Radar +{s['Radar Gain']} ┬и Fixture +{s['Fixture Gain']} ┬и {s['Risk']} risk.")
+        st.dataframe(pd.DataFrame(suggestions[:20]), use_container_width=True, hide_index=True)
+        best = suggestions[0]
+        render_verdict(
+            f"{best['OUT']} → {best['IN']}",
+            f"Model Radar gain +{best['Radar Gain']:.1f}. This is decision support, not a guarantee.",
+            "Medium",
+            best["Risk"],
+            "TRANSFER IDEA",
+        )
+    else:
+        st.info("No positive-Radar upgrade found under the current budget constraints.")
+
+    st.caption(
+        f"Free transfers selected: {free_transfers}. The planner does not pretend to know future points."
+    )
 
 
 # ============================================================
@@ -871,158 +1277,524 @@ def transfer_planner(data):
 # ============================================================
 
 def team_optimizer(data):
-    st.title("­ЪДа Team Optimizer")
-    budget=st.number_input("Squad budget (┬Бm)",50.0,120.0,100.0,.1)
-    strategy=st.selectbox("Strategy",["Safe","Balanced","Differential"])
-    players=add_scores(data["players"],data)
-    ownership_weight={"Safe":.20,"Balanced":.10,"Differential":-.05}[strategy]
+    st.title("🧠 Team Optimizer")
+    budget = st.number_input("Total squad budget (£m)", 50.0, 120.0, 100.0, .1)
+    strategy = st.selectbox("Strategy", ["Safe", "Balanced", "Differential"])
+
+    ownership_weight = {"Safe": .20, "Balanced": .10, "Differential": -.05}[strategy]
+    players = add_scores(data["players"], data)
+
     for p in players:
-        p["optimizer_score"]=p["radar_score"]*.80+clamp(p["selected_by"]*4,0,100)*ownership_weight
-    positions={"GKP":2,"DEF":5,"MID":5,"FWD":3}
-    selected=[]; counts={}; remaining=budget
-    for pos,n in positions.items():
-        pool=sorted([p for p in players if p["position"]==pos and p["status"]=="a" and p["minutes"]>100],key=lambda x:x["optimizer_score"],reverse=True)
+        ownership_component = clamp(p["selected_by"] * 4, 0, 100)
+        p["optimizer_score"] = p["radar_score"] * .80 + ownership_component * ownership_weight
+
+    requirements = {"GKP": 2, "DEF": 5, "MID": 5, "FWD": 3}
+    selected = []
+    team_counts = {}
+    remaining = budget
+
+    # Transparent greedy optimizer retained from old app, but clearly labeled.
+    for pos, count_needed in requirements.items():
+        pool = sorted(
+            [
+                p for p in players
+                if p["position"] == pos
+                and p["status"] == "a"
+                and p["minutes"] > 100
+            ],
+            key=lambda x: x["optimizer_score"],
+            reverse=True,
+        )
+
+        count = 0
         for p in pool:
-            if sum(1 for x in selected if x["position"]==pos)>=n: break
-            if remaining-p["price"]<0 or counts.get(p["team_id"],0)>=3: continue
-            selected.append(p); remaining-=p["price"]; counts[p["team_id"]]=counts.get(p["team_id"],0)+1
-    st.dataframe(pd.DataFrame([{"Player":p["name"],"Team":p["team_short"],"Pos":p["position"],"Price":money(p["price"]),"Score":round(p["optimizer_score"],1),"Risk":p["risk"]} for p in selected]),use_container_width=True,hide_index=True)
-    st.metric("Squad Cost",money(budget-remaining),f"{remaining:.1f}m remaining")
+            if count >= count_needed:
+                break
+            if remaining - p["price"] < 0:
+                continue
+            if team_counts.get(p["team_id"], 0) >= 3:
+                continue
+            selected.append(p)
+            remaining -= p["price"]
+            team_counts[p["team_id"]] = team_counts.get(p["team_id"], 0) + 1
+            count += 1
+
+    st.subheader("Recommended Squad")
+    st.dataframe(
+        pd.DataFrame([{
+            "Player": p["name"],
+            "Team": p["team_short"],
+            "Pos": p["position"],
+            "Price": money(p["price"]),
+            "Score": round(p["optimizer_score"], 1),
+            "Ownership": pct(p["selected_by"]),
+        } for p in selected]),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    total = sum(p["price"] for p in selected)
+    st.metric("Squad Cost", f"£{total:.1f}m", f"£{budget-total:.1f}m remaining")
+
+    if len(selected) < 15:
+        st.warning(
+            "The transparent greedy optimizer could not fill all 15 slots under the selected budget/team constraints. "
+            "It will not pretend the squad is valid."
+        )
+    st.caption("For a production-grade exact optimizer, an ILP/OR-Tools solver can replace this transparent heuristic.")
 
 
 # ============================================================
-# WHAT CHANGED + FIXTURE SWING + PRICE WATCH
+# FPL TEAM LINK
 # ============================================================
 
-def what_changed(data):
-    st.title("­ЪЊѕ What Changed?")
-    players=add_scores(data["players"],data)
-    rising=sorted(players,key=lambda x:x["form"],reverse=True)[:10]
-    falling=sorted(players,key=lambda x:x["form"])[:10]
-    c1,c2=st.columns(2)
+def my_team(data):
+    st.title("👤 My FPL Team")
+    st.caption("Optional: connect a public FPL Team ID. No API key is required.")
+
+    current = st.session_state.get("fpl_team_id")
+    team_id = st.number_input(
+        "FPL Team ID",
+        min_value=1,
+        value=int(current or 1),
+        step=1,
+    )
+
+    c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Risers by current form")
-        st.dataframe(pd.DataFrame([{"Player":p["name"],"Team":p["team_short"],"Form":p["form"],"Radar":round(p["radar_score"],1)} for p in rising]),use_container_width=True,hide_index=True)
+        if st.button("🔗 Connect Team", use_container_width=True):
+            try:
+                result = load_fpl_team(int(team_id))
+                st.session_state["fpl_team_id"] = int(team_id)
+                st.session_state["fpl_team_entry"] = result
+                st.success("FPL Team connected.")
+            except Exception as exc:
+                st.error(f"Unable to connect this Team ID: {exc}")
+
     with c2:
-        st.subheader("Watch / falling form")
-        st.dataframe(pd.DataFrame([{"Player":p["name"],"Team":p["team_short"],"Form":p["form"],"Risk":p["risk"]} for p in falling]),use_container_width=True,hide_index=True)
+        if st.button("Disconnect", use_container_width=True):
+            st.session_state.pop("fpl_team_id", None)
+            st.session_state.pop("fpl_team_entry", None)
+            st.rerun()
 
-    st.subheader("Fixture Swing")
-    rows=[]
-    gw=get_current_gw(data["events"])
-    for t in data["teams"].values():
-        now=fixture_score(team_fixture_rows(data,t["id"],gw,horizon=3))
-        nxt=fixture_score(team_fixture_rows(data,t["id"],gw+3,horizon=3))
-        rows.append({"Team":t["name"],"Current 3GW":round(now,1),"Next 3GW":round(nxt,1),"Swing":round(nxt-now,1)})
-    st.dataframe(pd.DataFrame(rows).sort_values("Swing",ascending=False),use_container_width=True,hide_index=True)
+    if not current and "fpl_team_entry" not in st.session_state:
+        st.info("Enter your FPL Team ID to load and analyze your squad.")
+        return
 
-    st.subheader("­Ъњ░ Price Watch")
-    st.caption("Current FPL price is available. Historical price movement requires a historical source; no fake change is shown.")
-    st.dataframe(pd.DataFrame([{"Player":p["name"],"Team":p["team_short"],"Price":money(p["price"]),"Ownership":pct(p["selected_by"]),"Form":p["form"]} for p in sorted(players,key=lambda x:x["price"],reverse=True)[:25]]),use_container_width=True,hide_index=True)
+    try:
+        result = st.session_state.get("fpl_team_entry") or load_fpl_team(int(st.session_state["fpl_team_id"]))
+        entry = result["entry"]
+        st.subheader(entry.get("name", "My FPL Team"))
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Overall Rank", entry.get("summary_overall_rank", "—"))
+        c2.metric("Total Points", entry.get("summary_overall_points", "—"))
+        c3.metric("Team ID", entry.get("id", "—"))
+
+        gw = get_current_gw(data["events"])
+        picks = load_fpl_team_picks(int(st.session_state["fpl_team_id"]), gw)
+        st.subheader(f"GW {gw} Squad")
+
+        player_map = {p["id"]: p for p in data["players"]}
+        rows = []
+        for pick in picks.get("picks", []):
+            p = player_map.get(pick.get("element"))
+            if not p:
+                continue
+            rows.append({
+                "Player": p["name"],
+                "Team": p["team_short"],
+                "Pos": p["position"],
+                "Price": money(p["price"]),
+                "Captain": "C" if pick.get("is_captain") else "VC" if pick.get("is_vice_captain") else "",
+                "Multiplier": pick.get("multiplier", 1),
+                "GW Points": p["event_points"],
+                "Radar": round(player_radar_score(p, data), 1),
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    except Exception as exc:
+        st.error(f"Unable to analyze the linked team: {exc}")
 
 
 # ============================================================
-# SETTINGS
+# GEMINI
 # ============================================================
 
-def settings_page(data):
-    st.title("РџЎ№ИЈ Settings")
-    st.subheader("Personal FPL Team")
-    team_id=st.number_input("FPL Team ID",min_value=0,value=int(st.session_state.get("fpl_team_id") or 0),step=1)
-    if team_id:
-        st.session_state["fpl_team_id"]=team_id
-        st.success("Team ID saved for this session.")
-    st.caption("The FPL public endpoints are used for team summary/picks where available. No FPL password is stored.")
+def get_gemini_client():
+    if not GEMINI_AVAILABLE:
+        return None, "google-genai is not installed."
+    key = get_secret("GEMINI_API_KEY")
+    if not key:
+        return None, "GEMINI_API_KEY is not configured in Streamlit Secrets."
+    try:
+        return genai.Client(api_key=key), None
+    except Exception as exc:
+        return None, str(exc)
 
-    st.subheader("Data sources")
-    st.write("Рђб FPL public API: automatic, no user API key required.")
-    st.write("Рђб Owner enrichment: screenshots/images only from the owner.")
-    st.write("Рђб Gemini: explanation/extraction layer; core FPL numbers remain in the structured engine.")
 
-    st.subheader("Refresh")
-    if st.button("­Ъћё Refresh FPL data"):
-        st.cache_data.clear()
+def build_ai_context(data):
+    players = add_scores(data["players"], data)
+    top = sorted(players, key=lambda p: p["radar_score"], reverse=True)[:40]
+
+    player_context = []
+    for p in top:
+        player_context.append({
+            "id": p["id"],
+            "name": p["name"],
+            "team": p["team_short"],
+            "position": p["position"],
+            "price": round(p["price"], 1),
+            "ownership": round(p["selected_by"], 1),
+            "form": round(p["form"], 2),
+            "xgi90": round(p["expected_goal_involvements_per_90"], 2),
+            "minutes_score": round(p["minutes_score"], 1),
+            "radar": round(p["radar_score"], 1),
+            "captain": round(p["captain_score"], 1),
+            "risk": round(p["risk_score"], 1),
+        })
+
+    team_context = []
+    for team in data["teams"].values():
+        fixtures = team_fixture_rows(data, team["id"], horizon=5)
+        team_context.append({
+            "team": team["name"],
+            "short": team["short_name"],
+            "fixture_score": round(fixture_score(fixtures), 1),
+            "fixtures": [
+                {
+                    "gw": f["gw"],
+                    "opp": f["opponent"],
+                    "home": f["home"],
+                    "difficulty": f["difficulty"],
+                }
+                for f in fixtures
+            ],
+            "defensive_enrichment": merged_defensive_profile(team, data),
+        })
+
+    return {
+        "gameweek": get_next_gw(data["events"]),
+        "top_players": player_context,
+        "teams": team_context,
+        "linked_team_id": st.session_state.get("fpl_team_id"),
+    }
+
+
+def ai_answer(question, data):
+    client, error = get_gemini_client()
+    if error:
+        return error
+
+    context = build_ai_context(data)
+    prompt = f""" You are Ask FPL HOME, an expert Fantasy Premier League decision-support assistant. DATA RULES: 1. FPL API data is the authoritative source for core FPL numbers supplied here. 2. Owner enrichment is optional and must be described as owner-supplied enrichment. 3. Gemini is NOT a source of FPL numbers. Never invent prices, ownership, fixtures, points or historical values. 4. If a number is absent, say that it is unavailable. 5. Clearly distinguish model scores from actual FPL points. 6. Give a practical verdict, explain why, mention risk, and provide an alternative when useful. 7. Never claim a recommendation guarantees points. QUESTION: {question} STRUCTURED DATA: {json.dumps(context, ensure_ascii=False)} Return: Verdict Why Risk Alternative (if relevant) """
+
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.2,
+                max_output_tokens=1000,
+            ),
+        )
+        return response.text
+    except Exception as exc:
+        return f"Gemini error: {exc}"
+
+
+def ask_fpl_home(data):
+    st.title("🤖 Ask FPL HOME")
+    st.caption("AI interpretation of FPL HOME's structured data. Gemini does not create the underlying FPL numbers.")
+
+    if "chat_history" not in st.session_state:
+        st.session_state["chat_history"] = []
+
+    for msg in st.session_state["chat_history"]:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    question = st.chat_input("e.g. Salah or Haaland captain this GW?")
+    if question:
+        st.session_state["chat_history"].append({"role": "user", "content": question})
+        with st.chat_message("user"):
+            st.markdown(question)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Ask FPL HOME is analyzing..."):
+                answer = ai_answer(question, data)
+            st.markdown(answer)
+
+        st.session_state["chat_history"].append({"role": "assistant", "content": answer})
+
+
+# ============================================================
+# OWNER CONTROL CENTER
+# ============================================================
+
+def owner_unlock():
+    configured = bool(get_secret("OWNER_PASSWORD"))
+    if not configured:
+        st.error("OWNER_PASSWORD is missing from Streamlit Secrets.")
+        st.info("Owner-only tools remain locked until OWNER_PASSWORD is configured.")
+        return False
+
+    if st.session_state.get("owner_unlocked"):
+        return True
+
+    password = st.text_input("Owner password", type="password")
+    if st.button("Unlock Owner Control Center", use_container_width=True):
+        if password == get_secret("OWNER_PASSWORD"):
+            st.session_state["owner_unlocked"] = True
+            st.success("Owner access enabled for this session.")
+            st.rerun()
+        else:
+            st.error("Incorrect password.")
+    return st.session_state.get("owner_unlocked", False)
+
+
+def gemini_image_to_structured(uploaded_file, team_hint=None, gw_hint=None):
+    client, error = get_gemini_client()
+    if error:
+        return None, error
+
+    image_bytes = uploaded_file.getvalue()
+    mime = uploaded_file.type or "image/jpeg"
+
+    schema = {
+        "team_name": "string or null",
+        "team_id": "integer or null",
+        "gameweek": "integer or null",
+        "left_vulnerability": "number 0-100 or null",
+        "center_vulnerability": "number 0-100 or null",
+        "right_vulnerability": "number 0-100 or null",
+        "overall_vulnerability": "number 0-100 or null",
+        "defensive_strength": "number 0-100 or null",
+        "source_label": "string",
+        "confidence": "High/Medium/Low/Unknown",
+        "notes": "string",
+    }
+
+    prompt = f""" You are the data-extraction layer inside FPL HOME. Analyze ONLY the uploaded image and convert visible defensive/tactical information into structured JSON. This is OWNER-SUPPLIED DATA ENRICHMENT. Do not invent values. If a value is not visible, return null. Do not infer a number from general football knowledge. Preserve the source label if visible. Team hint: {team_hint or "none"} Gameweek hint: {gw_hint or "none"} Return JSON matching this schema: {json.dumps(schema, indent=2)} """
+
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[
+                types.Part.from_bytes(data=image_bytes, mime_type=mime),
+                prompt,
+            ],
+            config=types.GenerateContentConfig(
+                temperature=0,
+                response_mime_type="application/json",
+            ),
+        )
+        return json.loads(response.text), None
+    except Exception as exc:
+        return None, str(exc)
+
+
+def owner_control_center(data):
+    st.title("🔐 Owner Control Center")
+    st.caption("Owner-only area for defensive-data enrichment. Normal users cannot upload data.")
+
+    if not owner_unlock():
+        return
+
+    st.success("Owner mode is active for this browser session.")
+
+    st.subheader("📸 Defensive Data Enrichment")
+    st.write(
+        "Upload your own screenshot. Gemini will read visible values and convert them to structured data. "
+        "The resulting values remain labeled as owner enrichment."
+    )
+
+    team_names = sorted(t["name"] for t in data["teams"].values())
+    team_name = st.selectbox("Team represented in the image", team_names)
+    team = next(t for t in data["teams"].values() if t["name"] == team_name)
+    gw = st.number_input("Gameweek represented", min_value=1, max_value=50, value=get_next_gw(data["events"]))
+    uploaded = st.file_uploader(
+        "Upload defensive/tactical screenshot",
+        type=["png", "jpg", "jpeg", "webp"],
+        accept_multiple_files=False,
+    )
+
+    if uploaded and st.button("🤖 Analyze Image", use_container_width=True):
+        with st.spinner("Gemini is extracting structured defensive data..."):
+            result, error = gemini_image_to_structured(uploaded, team_name, gw)
+
+        if error:
+            st.error(error)
+        else:
+            st.subheader("Extracted structured data")
+            st.json(result)
+            st.session_state["last_extracted_enrichment"] = result
+            st.session_state["last_extracted_team_id"] = team["id"]
+            st.session_state["last_extracted_gw"] = gw
+
+    extracted = st.session_state.get("last_extracted_enrichment")
+    if extracted:
+        st.divider()
+        st.subheader("Review & publish")
+        st.warning("Review the extracted values before publishing. Publishing changes this app session's enrichment layer.")
+
+        editable = {
+            "left": safe_float(extracted.get("left_vulnerability"), 0) if extracted.get("left_vulnerability") is not None else None,
+            "center": safe_float(extracted.get("center_vulnerability"), 0) if extracted.get("center_vulnerability") is not None else None,
+            "right": safe_float(extracted.get("right_vulnerability"), 0) if extracted.get("right_vulnerability") is not None else None,
+            "vulnerability": safe_float(extracted.get("overall_vulnerability"), 0) if extracted.get("overall_vulnerability") is not None else None,
+            "defensive_strength": safe_float(extracted.get("defensive_strength"), 0) if extracted.get("defensive_strength") is not None else None,
+        }
+
+        cols = st.columns(5)
+        keys = ["left", "center", "right", "vulnerability", "defensive_strength"]
+        for col, key in zip(cols, keys):
+            with col:
+                editable[key] = st.number_input(
+                    key.replace("_", " ").title(),
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=float(editable[key] if editable[key] is not None else 0),
+                    step=1.0,
+                )
+
+        notes = st.text_area("Owner notes", extracted.get("notes", ""))
+        source_label = st.text_input(
+            "Source label",
+            extracted.get("source_label", "Owner-uploaded image"),
+        )
+
+        if st.button("✅ Publish Enrichment", use_container_width=True):
+            enrichment = get_enrichment()
+            enrichment[str(team["id"])] = {
+                **editable,
+                "source": source_label or "Owner-uploaded image",
+                "confidence": extracted.get("confidence", "Unknown"),
+                "notes": notes,
+                "gw": int(gw),
+                "updated": utc_now(),
+            }
+            set_enrichment(enrichment)
+            st.success(f"Defensive enrichment published for {team_name}.")
+
+    st.divider()
+    st.subheader("Current enrichment")
+    enrichment = get_enrichment()
+    if enrichment:
+        rows = []
+        for tid, item in enrichment.items():
+            team = data["teams"].get(int(tid), {})
+            rows.append({
+                "Team": team.get("name", tid),
+                "GW": item.get("gw"),
+                "Left": item.get("left"),
+                "Center": item.get("center"),
+                "Right": item.get("right"),
+                "Source": item.get("source"),
+                "Updated": item.get("updated", ""),
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("No owner enrichment has been published in this session.")
+
+    if st.button("🗑️ Clear all session enrichment", use_container_width=True):
+        st.session_state["defensive_enrichment"] = {}
         st.rerun()
 
 
 # ============================================================
-# ASK FPL HOME
+# DATA HEALTH
 # ============================================================
 
-def ai_answer(question,data):
-    if not GEMINI_AVAILABLE:
-        return "Gemini SDK is not installed. Run: pip install -U google-genai"
-    key=get_gemini_key()
-    if not key:
-        return "AI is not configured on the server. Core FPL HOME analytics remain available."
+def data_health_page(data, api_ok=True):
+    st.title("🩺 Data Health")
+    st.caption("Transparent view of which layer supplies each data type.")
 
-    client=genai.Client(api_key=key)
-    players=add_scores(data["players"],data)
-    top=sorted(players,key=lambda x:x["radar_score"],reverse=True)[:60]
-    context={
-        "gameweek":get_current_gw(data["events"]),
-        "players":[{"name":p["name"],"team":p["team_short"],"pos":p["position"],"price":p["price"],"ownership":p["selected_by"],
-                    "form":p["form"],"xgi90":p["expected_goal_involvements_per_90"],"minutes":p["minutes_score"],
-                    "radar":p["radar_score"],"captain":p["captain_score"],"risk":p["risk_score"]} for p in top],
-        "defensive_enrichment":load_enrichment(),
-    }
-    prompt=f""" You are FPL HOME, an expert Fantasy Premier League decision assistant. Rules: - Numerical claims must come only from supplied data. - Never invent xG, xA, chance locations, ownership, price or fixtures. - Clearly label owner-enriched defensive data versus FPL API data. - Radar scores are model scores, not actual FPL points. - Give a verdict, why, risk, and alternative where useful. - Be concise and practical. Question: {question} DATA: {json.dumps(context,ensure_ascii=False)} """
-    try:
-        response=client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(temperature=.2,max_output_tokens=1000),
-        )
-        return response.text
-    except Exception as e:
-        return f"Gemini error: {e}"
+    rows = [
+        {
+            "Layer": "FPL API",
+            "Role": "Core FPL numbers, players, teams, fixtures",
+            "Status": "Connected" if api_ok else "Error",
+            "API Key": "Not required",
+        },
+        {
+            "Layer": "Owner enrichment",
+            "Role": "Optional defensive/tactical enrichment from your files/images",
+            "Status": f"{len(get_enrichment())} team profiles" if get_enrichment() else "None",
+            "API Key": "Owner only",
+        },
+        {
+            "Layer": "Gemini",
+            "Role": "Image interpretation + AI explanation",
+            "Status": "Configured" if get_secret("GEMINI_API_KEY") else "Not configured",
+            "API Key": "Streamlit Secrets only",
+        },
+    ]
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Teams", len(data["teams"]))
+    c2.metric("Players", len(data["players"]))
+    c3.metric("Fixtures", len(data["fixtures"]))
 
-def ask_home(data):
-    st.title("­Ъцќ Ask FPL HOME")
-    st.caption("The AI explains the numbers. It does not replace the structured FPL data engine.")
-    if "chat" not in st.session_state:
-        st.session_state["chat"]=[]
-    for m in st.session_state["chat"]:
-        with st.chat_message(m["role"]):
-            st.markdown(m["content"])
-    q=st.chat_input("Salah or Haaland captain? Which team has the best fixture swing?")
-    if q:
-        st.session_state["chat"].append({"role":"user","content":q})
-        with st.chat_message("assistant"):
-            with st.spinner("FPL HOME is analyzing..."):
-                a=ai_answer(q,data)
-            st.markdown(a)
-        st.session_state["chat"].append({"role":"assistant","content":a})
+    st.subheader("Rules")
+    st.markdown(
+        """ - **FPL API = source of core numbers** - **Owner uploads = data enrichment** - **Gemini = interpretation/extraction, not the source of FPL numbers** - **No user API-key input** - **No invented historical prices** """
+    )
 
 
 # ============================================================
 # NAVIGATION
 # ============================================================
 
-PAGES=[
-    ("­ЪЈа","Home"),
-    ("­ЪЏА","Defensive"),
-    ("Рџћ","H2H"),
-    ("­Ъњј","Differentials"),
-    ("­ЪЉЉ","Captain"),
-    ("­Ъћё","Transfers"),
-    ("­ЪДа","Optimizer"),
-    ("­ЪЊѕ","Changes"),
-    ("­Ъцќ","Ask AI"),
-    ("РџЎ","Settings"),
-]
+NAV_ITEMS = {
+    "🏠 Home": "Home",
+    "🔎 Search": "Search",
+    "👤 Player": "Player Profile",
+    "🛡️ Defensive Radar": "Defensive Radar",
+    "📅 Fixtures": "Fixtures",
+    "📈 What Changed": "What Changed",
+    "💰 Price Watch": "Price Watch",
+    "👑 Captaincy": "Captaincy",
+    "🔄 Transfers": "Transfer Planner",
+    "🧠 Optimizer": "Team Optimizer",
+    "👤 My Team": "My Team",
+    "🤖 Ask FPL HOME": "Ask FPL HOME",
+    "🔐 Owner": "Owner Control Center",
+    "🩺 Data Health": "Data Health",
+}
 
 
-def render_nav():
-    current=st.session_state.get("page","Home")
-    cols=st.columns(len(PAGES))
-    for col,(icon,label) in zip(cols,PAGES):
-        with col:
-            active=current==label
-            if st.button(f"{icon} {label}",key=f"nav_{label}",use_container_width=True):
-                st.session_state["page"]=label
-                st.rerun()
+def top_navigation(data):
+    # Gameweek selector lives in the top navigation area, not a sidebar.
+    labels = list(NAV_ITEMS.keys())
+    current_page = st.session_state.get("page", "Home")
+
+    default_idx = 0
+    for i, value in enumerate(NAV_ITEMS.values()):
+        if value == current_page:
+            default_idx = i
+            break
+
+    nav = st.radio(
+        "Navigation",
+        labels,
+        index=default_idx,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    st.session_state["page"] = NAV_ITEMS[nav]
+
+    gw_options = [e["id"] for e in data["events"]]
+    current_gw = get_next_gw(data["events"])
+    if gw_options:
+        selected_gw = st.selectbox(
+            "Gameweek",
+            gw_options,
+            index=gw_options.index(current_gw) if current_gw in gw_options else 0,
+            key="global_gw",
+        )
+        st.session_state["selected_gw"] = selected_gw
 
 
 # ============================================================
@@ -1030,74 +1802,58 @@ def render_nav():
 # ============================================================
 
 def main():
-    raw=None
-    try:
-        raw=load_fpl_data()
-        data=normalize_data(raw)
-    except Exception as e:
-        st.error("Unable to load FPL data.")
-        st.code(str(e))
-        if st.button("Retry"):
+    raw, ok, error = load_data_with_status()
+
+    if not ok:
+        st.error("❌ Unable to load FPL API data.")
+        st.code(str(error))
+        if st.button("🔄 Retry"):
             st.cache_data.clear()
             st.rerun()
         return
 
-    if "page" not in st.session_state:
-        st.session_state["page"]="Home"
-    if "selected_gw" not in st.session_state:
-        st.session_state["selected_gw"]=get_current_gw(data["events"])
+    data = normalize_data(raw)
 
-    st.markdown(
-        f'<div class="nav-note">GW {st.session_state["selected_gw"]} ┬и Live FPL data ┬и updated {data["updated"][:16].replace("T"," ")}</div>',
-        unsafe_allow_html=True,
-    )
-    render_nav()
+    top_navigation(data)
 
-    # Compact global search lives below navigation.
-    search_result=global_search(data)
-    if search_result:
-        kind,obj=search_result
-        if kind=="player":
-            player_profile(data,obj)
-            return
-        if kind=="team":
-            st.session_state["page"]="Defensive"
+    # Small global actions
+    col1, col2 = st.columns([5, 1])
+    with col2:
+        if st.button("↻ Refresh"):
+            st.cache_data.clear()
             st.rerun()
 
-    page=st.session_state["page"]
+    page = st.session_state.get("page", "Home")
 
-    if page=="Home":
+    if page == "Home":
         home(data)
-    elif page=="Defensive":
+    elif page == "Search":
+        global_search(data)
+    elif page == "Player Profile":
+        player_profile(data)
+    elif page == "Defensive Radar":
         defensive_radar(data)
-    elif page=="H2H":
-        h2h(data)
-    elif page=="Differentials":
-        differential_scout(data)
-    elif page=="Captain":
-        captaincy(data)
-    elif page=="Transfers":
-        transfer_planner(data)
-    elif page=="Optimizer":
-        team_optimizer(data)
-    elif page=="Changes":
+    elif page == "Fixtures":
+        fixtures_page(data)
+    elif page == "What Changed":
         what_changed(data)
-    elif page=="Ask AI":
-        ask_home(data)
-    elif page=="Settings":
-        settings_page(data)
+    elif page == "Price Watch":
+        price_watch(data)
+    elif page == "Captaincy":
+        captaincy(data)
+    elif page == "Transfer Planner":
+        transfer_planner(data)
+    elif page == "Team Optimizer":
+        team_optimizer(data)
+    elif page == "My Team":
+        my_team(data)
+    elif page == "Ask FPL HOME":
+        ask_fpl_home(data)
+    elif page == "Owner Control Center":
+        owner_control_center(data)
+    elif page == "Data Health":
+        data_health_page(data, api_ok=True)
 
-    # Owner controls are not in normal navigation.
-    with st.sidebar:
-        if st.button("­Ъћљ Owner Control Center",use_container_width=True):
-            st.session_state["page"]="Admin"
-            st.rerun()
 
-    if st.session_state.get("page")=="Admin":
-        admin_login()
-        if is_admin():
-            admin_panel(data)
-
-
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
